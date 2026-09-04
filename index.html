@@ -177,13 +177,17 @@ video#cam-video{ display:none; }
   <div class="roster" id="roster"></div>
   <button id="add-char-btn" type="button">+ הוסף דמות</button>
 
-  <div style="margin-top:18px;">
+  <div class="card" style="margin-top:18px;">
+    <label class="f">מזהה קישור (אנגלית/מספרים בלבד, בלי רווחים)</label>
+    <input type="text" id="game-slug" placeholder="tuval2026">
     <div class="len-meter" id="len-meter"></div>
-    <button class="btn" id="btn-generate-link" disabled>צור קישור למשחק</button>
+    <button class="btn" id="btn-generate-link" disabled style="margin-top:10px;">צור קובץ + קישור למשחק</button>
   </div>
 
   <div class="card hidden" id="link-result" style="margin-top:14px;">
-    <h2 style="font-size:16px; margin:0 0 8px;">הקישור מוכן ✅</h2>
+    <h2 style="font-size:16px; margin:0 0 10px;">שני שלבים לסיום ✅</h2>
+    <p class="sub" style="margin-bottom:8px;"><b>1.</b> קובץ בשם <code id="slug-filename" style="color:var(--amber);"></code> ירד עכשיו למחשב/לטלפון — העלה אותו ל-GitHub, לאותה תיקייה שבה נמצא ה-index.html (Add file → Upload files).</p>
+    <p class="sub" style="margin-bottom:12px;"><b>2.</b> אחרי שהוא עלה (כמה שניות), שתפו את הקישור הקצר הזה — הוא כן ילחץ בוואטסאפ:</p>
     <code class="linkbox" id="generated-link"></code>
     <div class="row">
       <button class="btn secondary" id="btn-copy-link">העתק קישור</button>
@@ -370,13 +374,13 @@ function compressImage(file, maxW, quality){
 
 function updateGenerateState(){
   const ready = roster.filter(c=>c.lat && c.name.trim());
-  $('btn-generate-link').disabled = ready.length === 0;
+  $('btn-generate-link').disabled = ready.length === 0 || !slugify($('game-slug').value);
   const payload = buildPayload();
   const len = JSON.stringify(payload).length;
-  const meter = $('len-meter');
-  meter.textContent = `גודל קישור משוער: ${(len/1024).toFixed(0)}KB${len>50000?' — כדאי להחליף תמונות בקישורי וידאו כדי שהקישור לא יהיה ענק מדי לוואטסאפ':''}`;
-  meter.classList.toggle('warn', len>50000);
+  $('len-meter').textContent = `גודל קובץ המשחק: כ-${(len/1024).toFixed(0)}KB (עולה כקובץ נפרד — לא משפיע על אורך הקישור)`;
 }
+
+function slugify(s){ return (s||'').trim().toLowerCase().replace(/[^a-z0-9-]+/g,'-').replace(/^-+|-+$/g,''); }
 
 function buildPayload(){
   return {
@@ -393,17 +397,34 @@ function initEditor(){
   if (roster.length === 0){
     DEFAULT_ROSTER.forEach(d=>roster.push({ uid:++uidSeq, name:d.name, color:d.color, emoji:d.emoji, image:d.image, videoUrl:d.videoUrl, lat:null, lng:null }));
     if (!$('project-name').value) $('project-name').value = DEFAULT_PROJECT_NAME;
+    if (!$('game-slug').value) $('game-slug').value = 'game-' + Math.random().toString(36).slice(2,7);
   }
   $('project-name').oninput = updateGenerateState;
   $('radius-input').oninput = updateGenerateState;
+  $('game-slug').oninput = updateGenerateState;
   $('add-char-btn').onclick = addCharacter;
   $('btn-generate-link').onclick = generateGameLink;
   renderRoster();
 }
 
+// אורך URL עם תמונות מוטמעות (#g=...) שובר קישוריות אוטומטית בוואטסאפ.
+// לכן במקום להטמיע הכל בקישור, יוצרים קובץ JSON נפרד שיושב ליד ה-index.html
+// בריפו של GitHub Pages, והקישור המשותף מכיל רק את שם הקובץ (?game=slug) — קצר וקליק.
 function generateGameLink(){
   const data = buildPayload();
-  const link = `${location.origin}${location.pathname}#g=${b64enc(JSON.stringify(data))}`;
+  const slug = slugify($('game-slug').value) || ('game-' + Date.now());
+  const filename = `${slug}.json`;
+
+  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+
+  let dir = location.pathname.replace(/index\.html?$/i, '');
+  const link = `${location.origin}${dir}?game=${slug}`;
+
+  $('slug-filename').textContent = filename;
   $('generated-link').textContent = link;
   $('link-result').classList.remove('hidden');
   $('btn-copy-link').onclick = ()=> navigator.clipboard.writeText(link).then(()=>$('btn-copy-link').textContent='הועתק ✓');
@@ -602,13 +623,35 @@ $('btn-share-collage').addEventListener('click', ()=>{
   }, 'image/jpeg', 0.9);
 });
 /* ===================== ROUTER ===================== */
+// קישור קצר: ?game=slug -> fetch("./slug.json") מאותה תיקייה ב-GitHub Pages.
+// זה קיים כי URL עם תמונות מוטמעות (#g=...) יוצא ארוך מדי ולא נלחץ בוואטסאפ.
+// #g=... נשאר נתמך כ-fallback ישן (לרוסטרים קטנים בלי תמונות).
 const params = new URLSearchParams(location.search);
 const hashMatch = location.hash.match(/g=([^&]+)/);
 let GAME_DATA = null;
-if (hashMatch){ try{ GAME_DATA = JSON.parse(b64dec(decodeURIComponent(hashMatch[1]))); }catch(e){ console.error('bad link', e); } }
 
-if (GAME_DATA){ $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`; }
-showScreen(params.get('editor')==='1' ? (initEditor(), 'screen-editor') : 'screen-intro');
+async function loadGameData(){
+  const slug = params.get('game');
+  if (slug){
+    try{
+      const res = await fetch(`./${slugify(slug)}.json`, {cache:'no-store'});
+      if (!res.ok) throw new Error('http '+res.status);
+      GAME_DATA = await res.json();
+    }catch(e){
+      console.error('game file not found', e);
+      $('intro-project').textContent = 'לא נמצא קובץ המשחק. ודאו שהעליתם את קובץ ה-JSON לאותה תיקייה ב-GitHub לצד ה-index.html.';
+      return;
+    }
+  } else if (hashMatch){
+    try{ GAME_DATA = JSON.parse(b64dec(decodeURIComponent(hashMatch[1]))); }catch(e){ console.error('bad link', e); }
+  }
+  if (GAME_DATA){ $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`; }
+}
+
+(async ()=>{
+  if (params.get('editor')==='1'){ initEditor(); showScreen('screen-editor'); }
+  else { await loadGameData(); showScreen('screen-intro'); }
+})();
 
 $('editor-toggle').addEventListener('click', ()=>{ initEditor(); showScreen('screen-editor'); });
 $('btn-start-player').addEventListener('click', ()=>{
