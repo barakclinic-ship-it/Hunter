@@ -271,11 +271,11 @@ $('editor-logo-row').innerHTML = '<img src="hunter-logo.png" alt="HUNTER" style=
 
 /* ===================== EDITOR ===================== */
 const DEFAULT_ROSTER = [
-  { id:"wood",  name:"עץ",   color:"#3ea86b", emoji:"🌳", imageUrl:"characters/wood.webp",  videoUrl:"" },
-  { id:"fire",  name:"אש",   color:"#e0524a", emoji:"🔥", imageUrl:"characters/fire.webp",  videoUrl:"" },
-  { id:"earth", name:"אדמה", color:"#c9a24b", emoji:"⛰️", imageUrl:"characters/earth.webp", videoUrl:"" },
-  { id:"metal", name:"מתכת", color:"#5b8ab5", emoji:"⚔️", imageUrl:"characters/metal.webp", videoUrl:"" },
-  { id:"water", name:"מים",  color:"#2e3f6e", emoji:"💧", imageUrl:"characters/water.webp", videoUrl:"" },
+  { id:"wood",  name:"עץ",   color:"#3ea86b", emoji:"🌳", imageUrl:"wood.webp",  videoUrl:"" },
+  { id:"fire",  name:"אש",   color:"#e0524a", emoji:"🔥", imageUrl:"fire.webp",  videoUrl:"" },
+  { id:"earth", name:"אדמה", color:"#c9a24b", emoji:"⛰️", imageUrl:"earth.webp", videoUrl:"" },
+  { id:"metal", name:"מתכת", color:"#5b8ab5", emoji:"⚔️", imageUrl:"metal.webp", videoUrl:"" },
+  { id:"water", name:"מים",  color:"#2e3f6e", emoji:"💧", imageUrl:"water.webp", videoUrl:"" },
 ];
 
 let roster = []; // {uid,name,color,emoji,image,imageUrl,videoUrl,lat,lng}
@@ -323,7 +323,7 @@ function renderRoster(){
         </label>
         <div class="full">
           <label class="f">קישור לתמונה מתארחת (מומלץ — לא נכנס בתוך הקישור)</label>
-          <input type="url" placeholder="characters/wood.webp" value="${c.imageUrl||''}" data-f="imageUrl" data-uid="${c.uid}">
+          <input type="url" placeholder="wood.webp" value="${c.imageUrl||''}" data-f="imageUrl" data-uid="${c.uid}">
         </div>
         <div class="full">
           <label class="f">קישור לסרטון עם רקע ירוק (מומלץ לסרטונים — לא נכנס בתוך הקישור)</label>
