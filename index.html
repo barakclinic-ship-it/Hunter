@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>חמשת האלמנטים — ציד</title>
+<style>
+  :root{
+    --bg:#0d0f10;
+    --panel:#16191b;
+    --panel2:#1e2224;
+    --text:#eef1ee;
+    --muted:#9aa39c;
+    --wood:#3ea86b;
+    --fire:#e0524a;
+    --earth:#c9a24b;
+    --metal:#cfd3cf;
+    --water:#3f74c9;
+    --accent: var(--wood);
+    --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    overflow-x:hidden;
+  }
+  .screen{ min-height:100dvh; padding:20px 16px 40px; display:none; flex-direction:column; }
+  .screen.active{ display:flex; }
+  h1{ font-size:22px; margin:4px 0 2px; }
+  h2{ font-size:17px; margin:0 0 4px; }
+  p.sub{ color:var(--muted); font-size:14px; margin:0 0 18px; line-height:1.5;}
+  .card{ background:var(--panel); border:1px solid #2a2e30; border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--accent); color:#0d0f10; font-weight:700; font-size:15px;
+    border:none; border-radius:12px; padding:14px 18px; cursor:pointer; width:100%;
+    transition:transform .1s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn.secondary{ background:var(--panel2); color:var(--text); border:1px solid #333; }
+  .btn.ghost{ background:transparent; color:var(--muted); border:1px solid #333; }
+  .btn:disabled{ opacity:.4; pointer-events:none; }
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+  .elem-row{ display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid #24282a; }
+  .elem-row:last-child{ border-bottom:none; }
+  .elem-icon{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+  .elem-name{ font-weight:700; font-size:15px; }
+  .elem-status{ font-size:12px; color:var(--muted); }
+  input[type=checkbox]{ width:20px; height:20px; accent-color:var(--accent); }
+  input[type=number],input[type=text]{
+    background:var(--panel2); border:1px solid #333; color:var(--text);
+    border-radius:10px; padding:10px 12px; font-size:15px; width:100%;
+  }
+  label.small{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  .badge{ font-size:11px; padding:3px 8px; border-radius:20px; background:var(--panel2); color:var(--muted); }
+  .badge.ok{ background:#1c3a24; color:#7fdc9a; }
+  code.linkbox{
+    display:block; background:var(--panel2); border:1px solid #333; border-radius:10px;
+    padding:10px; font-size:11px; word-break:break-all; color:var(--muted); margin-bottom:10px; max-height:70px; overflow:auto;
+  }
+  /* Radar screen */
+  #radar-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .compass{
+    width:min(70vw,300px); height:min(70vw,300px); border-radius:50%;
+    border:2px solid #2a2e30; position:relative;
+    background:radial-gradient(circle at 50% 50%, var(--panel2), var(--bg));
+    display:flex; align-items:center; justify-content:center; margin-bottom:22px;
+  }
+  .compass .arrow{
+    position:absolute; width:0; height:0; top:50%; left:50%;
+    border-left:20px solid transparent; border-right:20px solid transparent;
+    border-bottom:64px solid var(--accent);
+    transform-origin: 50% 100%;
+    margin-top:-64px; margin-left:-20px;
+    transition: transform .25s linear, border-bottom-color .3s ease;
+    filter: drop-shadow(0 0 10px var(--accent));
+  }
+  .compass .center-emoji{ font-size:40px; z-index:2; }
+  #dist-text{ font-size:15px; color:var(--muted); margin-bottom:2px; }
+  #temp-text{ font-size:26px; font-weight:800; margin-bottom:18px; }
+  .dots{ display:flex; gap:10px; margin-bottom:8px; }
+  .dot{ width:14px; height:14px; border-radius:50%; border:2px solid #333; }
+  .dot.found{ border-color:transparent; }
+  /* Camera / found screen */
+  #camera-wrap{ position:fixed; inset:0; background:#000; display:none; z-index:50; flex-direction:column; }
+  #camera-wrap.active{ display:flex; }
+  #cam-canvas{ width:100%; height:100%; object-fit:cover; flex:1; }
+  video#cam-video{ display:none; }
+  #found-overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    padding:30px 20px 50px; text-align:center; pointer-events:none;
+    background:linear-gradient(to top, rgba(0,0,0,.75), transparent 50%);
+  }
+  #found-overlay h2{ font-size:24px; margin-bottom:6px; }
+  #found-overlay p{ color:#dfe4df; font-size:14px; max-width:320px; line-height:1.5; }
+  /* Gallery / final popup */
+  #final-modal{
+    position:fixed; inset:0; background:rgba(6,7,8,.92); z-index:60; display:none;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  #final-modal.active{ display:flex; }
+  #final-modal .box{ background:var(--panel); border-radius:20px; padding:20px; width:100%; max-width:420px; text-align:center; }
+  #collage-canvas{ width:100%; border-radius:12px; margin:12px 0; border:1px solid #333; }
+  .hidden{ display:none !important; }
+  #editor-toggle{ position:fixed; bottom:10px; left:10px; font-size:10px; color:#444; z-index:5; background:none; border:none; padding:6px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<!-- ===================== INTRO / MODE ROUTER ===================== -->
+<div id="screen-intro" class="screen">
+  <h1>🌿🔥⛰️⚔️💧 ציד חמשת האלמנטים</h1>
+  <p class="sub">ריטריט תובל — צאו לשטח ומצאו את חמשת האלמנטים החבויים סביבכם.</p>
+  <div class="card">
+    <button class="btn" id="btn-start-player">התחל לחפש</button>
+  </div>
+  <p class="sub" style="margin-top:30px;">לא קיבלת קישור אישי? בקש מהמארגן.</p>
+  <button id="editor-toggle" type="button">מצב עורך</button>
+</div>
+
+<!-- ===================== EDITOR MODE ===================== -->
+<div id="screen-editor" class="screen">
+  <h1>עורך המשחק</h1>
+  <p class="sub">עמוד ליד כל אלמנט בשטח ולחץ "קבע מיקום כאן". בסוף תיצור קישור אחד לשליחה לקבוצה.</p>
+
+  <div class="card">
+    <label class="small">רדיוס גילוי (מטרים)</label>
+    <input type="number" id="radius-input" value="20" min="5" max="200">
+  </div>
+
+  <div class="card" id="elements-list"><!-- populated by JS --></div>
+
+  <button class="btn" id="btn-generate-link" disabled>צור קישור למשחק</button>
+
+  <div class="card hidden" id="link-result">
+    <h2>הקישור מוכן ✅</h2>
+    <code class="linkbox" id="generated-link"></code>
+    <div class="row">
+      <button class="btn secondary" id="btn-copy-link">העתק קישור</button>
+      <button class="btn" id="btn-whatsapp-link">שלח בוואטסאפ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PLAYER: PERMISSIONS ===================== -->
+<div id="screen-permissions" class="screen">
+  <h1>לפני שיוצאים לדרך</h1>
+  <p class="sub">האפליקציה צריכה גישה למיקום ולמצלמה כדי שתוכלו למצוא את האלמנטים.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px;">
+      <span>📍 מיקום</span><span class="badge" id="badge-geo">נדרש</span>
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <span>🧭 מצפן</span><span class="badge" id="badge-compass">נדרש</span>
+    </div>
+  </div>
+  <button class="btn" id="btn-grant-perms">אשר גישה והתחל</button>
+  <p class="sub" id="perm-error" style="color:#e0524a;"></p>
+</div>
+
+<!-- ===================== PLAYER: RADAR ===================== -->
+<div id="screen-radar" class="screen">
+  <div class="dots" id="progress-dots"></div>
+  <div id="radar-wrap">
+    <div class="compass">
+      <div class="arrow" id="radar-arrow"></div>
+      <div class="center-emoji" id="radar-emoji">🧭</div>
+    </div>
+    <div id="dist-text">מחפשים מיקום...</div>
+    <div id="temp-text">—</div>
+    <p class="sub" id="radar-target-name" style="text-align:center;"></p>
+  </div>
+</div>
+
+<!-- ===================== CAMERA / FOUND OVERLAY ===================== -->
+<div id="camera-wrap">
+  <video id="cam-video" autoplay playsinline muted></video>
+  <canvas id="cam-canvas"></canvas>
+  <div id="found-overlay">
+    <h2 id="found-title"></h2>
+    <p id="found-desc"></p>
+  </div>
+</div>
+
+<!-- ===================== FINAL MODAL ===================== -->
+<div id="final-modal">
+  <div class="box">
+    <h1>מצאתם את כל חמשת האלמנטים! 🎉</h1>
+    <canvas id="collage-canvas"></canvas>
+    <button class="btn" id="btn-share-collage">שתפו לוואטסאפ</button>
+    <p class="sub" style="margin-top:10px;">בשיתוף בחרו את איש הקשר / קבוצת הריטריט</p>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG — ערוך כאן
+   ========================================================================= */
+const RADIUS_DEFAULT = 20; // meters, can be overridden by editor
+// מספר הטלפון של המארגן (עם קידומת מדינה, בלי +), לשימוש בהודעת גיבוי בלבד
+const ORGANIZER_PHONE = ""; // לדוגמה "972501234567" — השאר ריק אם לא רוצים ברירת מחדל
+
+// כל אלמנט: id, name, color, emoji, desc.
+// כדי להשתמש בסרטון דמות אמיתי (מוכן ב-Viggle עם רקע ירוק) — הוסף videoUrl.
+// כשיש videoUrl, האפליקציה תעשה chroma-key בזמן אמת במקום האנימציה הזמנית.
+const ELEMENTS = [
+  { id:'wood',  name:'עץ',    color:'#3ea86b', emoji:'🌳', desc:'הצמיחה, הגמישות וההתחלה החדשה.', videoUrl:'' },
+  { id:'fire',  name:'אש',    color:'#e0524a', emoji:'🔥', desc:'התשוקה, האנרגיה והתנועה.',        videoUrl:'' },
+  { id:'earth', name:'אדמה',  color:'#c9a24b', emoji:'⛰️', desc:'היציבות, הביסוס והמרכז.',         videoUrl:'' },
+  { id:'metal', name:'מתכת',  color:'#cfd3cf', emoji:'⚔️', desc:'הדיוק, הבהירות וההשתחררות.',      videoUrl:'' },
+  { id:'water', name:'מים',   color:'#3f74c9', emoji:'💧', desc:'הזרימה, החוכמה והעומק.',          videoUrl:'' },
+];
+const FOUND_ANIM_MS = 4500; // כמה זמן הדמות "רוקדת" לפני הצילום האוטומטי
+
+/* =========================================================================
+   UTIL
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+function b64EncodeUnicode(str){
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,(m,p)=>String.fromCharCode('0x'+p)));
+}
+function b64DecodeUnicode(str){
+  return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function bearing(lat1,lon1,lat2,lon2){
+  const toRad=d=>d*Math.PI/180, toDeg=r=>r*180/Math.PI;
+  const y=Math.sin(toRad(lon2-lon1))*Math.cos(toRad(lat2));
+  const x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lon2-lon1));
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+
+/* =========================================================================
+   ROUTER — decide editor / player / intro based on URL
+   ========================================================================= */
+const params = new URLSearchParams(location.search);
+const hashMatch = location.hash.match(/g=([^&]+)/);
+
+let GAME_DATA = null; // {radius, chars:[{id,name,color,emoji,desc,lat,lng,videoUrl}]}
+
+if (hashMatch) {
+  try {
+    GAME_DATA = JSON.parse(b64DecodeUnicode(decodeURIComponent(hashMatch[1])));
+  } catch(e){ console.error('bad game link', e); }
+}
+
+if (params.get('editor') === '1') {
+  initEditor();
+  showScreen('screen-editor');
+} else if (GAME_DATA) {
+  showScreen('screen-intro');
+} else {
+  // No link and not editor — still show intro, "start" will explain there's no data
+  showScreen('screen-intro');
+}
+
+// JS-driven toggle (works even where query-string navigation/links are blocked,
+// e.g. inside a sandboxed preview). Real deployed links (?editor=1) also work.
+$('editor-toggle').addEventListener('click', ()=>{
+  initEditor();
+  showScreen('screen-editor');
+});
+
+$('btn-start-player').addEventListener('click', ()=>{
+  if (!GAME_DATA){
+    alert('לא נמצא קישור משחק פעיל. בקש/י קישור מהמארגן.');
+    return;
+  }
+  showScreen('screen-permissions');
+});
+
+/* =========================================================================
+   EDITOR MODE
+   ========================================================================= */
+let editorLocations = {}; // id -> {lat,lng}
+
+function initEditor(){
+  const list = $('elements-list');
+  list.innerHTML = '';
+  ELEMENTS.forEach(el=>{
+    const row = document.createElement('div');
+    row.className = 'elem-row';
+    row.innerHTML = `
+      <input type="checkbox" data-id="${el.id}" class="elem-check">
+      <div class="elem-icon" style="background:${el.color}22; border:1px solid ${el.color};">${el.emoji}</div>
+      <div style="flex:1;">
+        <div class="elem-name">${el.name}</div>
+        <div class="elem-status" id="status-${el.id}">לא נבחר</div>
+      </div>
+      <button class="btn secondary" style="width:auto; padding:10px 14px;" data-id="${el.id}" disabled id="btn-loc-${el.id}">קבע מיקום כאן</button>
+    `;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('.elem-check').forEach(cb=>{
+    cb.addEventListener('change', (e)=>{
+      const id = e.target.dataset.id;
+      $(`btn-loc-${id}`).disabled = !e.target.checked;
+      if(!e.target.checked){
+        delete editorLocations[id];
+        $(`status-${id}`).textContent = 'לא נבחר';
+      } else {
+        $(`status-${id}`).textContent = 'נבחר — עמוד/י במיקום ולחץ/י "קבע מיקום"';
+      }
+      updateGenerateBtn();
+    });
+  });
+
+  list.querySelectorAll('[id^=btn-loc-]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const id = e.target.dataset.id;
+      e.target.textContent = 'ממקם...';
+      navigator.geolocation.getCurrentPosition(pos=>{
+        editorLocations[id] = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        $(`status-${id}`).innerHTML = `<span class="badge ok">מיקום נשמר ✓</span>`;
+        e.target.textContent = 'עדכן מיקום';
+        updateGenerateBtn();
+      }, err=>{
+        alert('שגיאת מיקום: ' + err.message);
+        e.target.textContent = 'קבע מיקום כאן';
+      }, { enableHighAccuracy:true, timeout:15000 });
+    });
+  });
+
+  $('btn-generate-link').addEventListener('click', generateGameLink);
+}
+
+function updateGenerateBtn(){
+  const ids = Object.keys(editorLocations);
+  $('btn-generate-link').disabled = ids.length === 0;
+}
+
+function generateGameLink(){
+  const radius = parseInt($('radius-input').value,10) || RADIUS_DEFAULT;
+  const chars = ELEMENTS
+    .filter(el => editorLocations[el.id])
+    .map(el => ({
+      id: el.id, name: el.name, color: el.color, emoji: el.emoji, desc: el.desc,
+      lat: editorLocations[el.id].lat, lng: editorLocations[el.id].lng,
+      videoUrl: el.videoUrl || ''
+    }));
+  const data = { radius, chars };
+  const encoded = b64EncodeUnicode(JSON.stringify(data));
+  const base = location.origin + location.pathname;
+  const link = `${base}#g=${encoded}`;
+  $('generated-link').textContent = link;
+  $('link-result').classList.remove('hidden');
+
+  $('btn-copy-link').onclick = ()=>{
+    navigator.clipboard.writeText(link).then(()=> $('btn-copy-link').textContent = 'הועתק ✓');
+  };
+  $('btn-whatsapp-link').onclick = ()=>{
+    const msg = encodeURIComponent(`🌿🔥⛰️⚔️💧 ציד חמשת האלמנטים בתובל — לחצו כדי להתחיל:\n${link}`);
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  };
+}
+
+/* =========================================================================
+   PLAYER MODE — permissions
+   ========================================================================= */
+let userHeading = 0;
+let userPos = null;
+let foundIds = new Set();
+let foundSnapshots = {}; // id -> dataURL
+
+$('btn-grant-perms').addEventListener('click', async ()=>{
+  $('perm-error').textContent = '';
+  try {
+    // geolocation permission (triggers browser prompt)
+    await new Promise((res,rej)=>{
+      navigator.geolocation.getCurrentPosition(p=>{ userPos={lat:p.coords.latitude,lng:p.coords.longitude}; res(); }, rej, {enableHighAccuracy:true,timeout:15000});
+    });
+    $('badge-geo').textContent = 'אושר ✓';
+    $('badge-geo').classList.add('ok');
+
+    // iOS 13+ requires explicit permission for device orientation
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      const res = await DeviceOrientationEvent.requestPermission();
+      if (res !== 'granted') throw new Error('אין הרשאת מצפן');
+    }
+    $('badge-compass').textContent = 'אושר ✓';
+    $('badge-compass').classList.add('ok');
+
+    startPlayerLoop();
+  } catch(err){
+    $('perm-error').textContent = 'לא הצלחנו לקבל הרשאות: ' + err.message + '. אפשר להמשיך בלי מצפן (המרחק עדיין יעבוד).';
+    startPlayerLoop();
+  }
+});
+
+/* =========================================================================
+   PLAYER MODE — radar loop
+   ========================================================================= */
+function startPlayerLoop(){
+  showScreen('screen-radar');
+  buildProgressDots();
+
+  navigator.geolocation.watchPosition(pos=>{
+    userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    updateRadar();
+  }, err=>console.warn(err), { enableHighAccuracy:true, maximumAge:2000 });
+
+  window.addEventListener('deviceorientationabsolute', onOrientation, true);
+  window.addEventListener('deviceorientation', onOrientation, true);
+
+  setInterval(updateRadar, 800);
+}
+
+function onOrientation(e){
+  let heading = e.webkitCompassHeading; // iOS
+  if (heading === undefined || heading === null){
+    heading = e.alpha != null ? (360 - e.alpha) : null; // best-effort for Android
+  }
+  if (heading != null) userHeading = heading;
+}
+
+function buildProgressDots(){
+  const wrap = $('progress-dots');
+  wrap.innerHTML = '';
+  GAME_DATA.chars.forEach(c=>{
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.id = 'dot-' + c.id;
+    d.style.borderColor = c.color;
+    wrap.appendChild(d);
+  });
+}
+
+function nearestUnfoundTarget(){
+  if (!userPos) return null;
+  let best=null, bestDist=Infinity;
+  GAME_DATA.chars.forEach(c=>{
+    if (foundIds.has(c.id)) return;
+    const d = haversine(userPos.lat,userPos.lng,c.lat,c.lng);
+    if (d < bestDist){ bestDist=d; best={char:c, dist:d}; }
+  });
+  return best;
+}
+
+let cameraLock = false;
+function updateRadar(){
+  if (cameraLock) return;
+  const target = nearestUnfoundTarget();
+  if (!target){
+    if (foundIds.size === GAME_DATA.chars.length){ showFinal(); }
+    return;
+  }
+  const { char, dist } = target;
+  const brg = userPos ? bearing(userPos.lat,userPos.lng,char.lat,char.lng) : 0;
+  const rotation = brg - userHeading;
+
+  $('radar-arrow').style.transform = `rotate(${rotation}deg)`;
+  $('radar-arrow').style.borderBottomColor = char.color;
+  $('radar-emoji').textContent = char.emoji;
+  $('radar-target-name').textContent = `מחפשים: ${char.name}`;
+  $('dist-text').textContent = `כ-${Math.round(dist)} מטר`;
+
+  let temp = 'קר', color = '#3f74c9';
+  if (dist < char.__radius) temp = 'פה!!!';
+  else if (dist < 40) { temp='חם מאוד 🔥'; color='#e0524a'; }
+  else if (dist < 100){ temp='מתחמם'; color='#c9a24b'; }
+  else if (dist < 300){ temp='קריר'; color='#9aa39c'; }
+  $('temp-text').textContent = temp;
+  $('temp-text').style.color = color;
+
+  const radius = char.__radius;
+  if (dist <= radius){
+    triggerFound(char);
+  }
+}
+
+// attach effective radius to each char once at load
+function annotateRadius(){
+  GAME_DATA.chars.forEach(c=> c.__radius = GAME_DATA.radius || RADIUS_DEFAULT);
+}
+
+/* =========================================================================
+   CAMERA / FOUND SEQUENCE
+   ========================================================================= */
+let camStream = null, camCtx = null, camAnimFrame = null;
+
+async function triggerFound(char){
+  cameraLock = true;
+  $('camera-wrap').classList.add('active');
+  $('found-title').textContent = '';
+  $('found-desc').textContent = '';
+
+  const video = $('cam-video');
+  const canvas = $('cam-canvas');
+  camCtx = canvas.getContext('2d');
+
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' }, audio:false });
+    video.srcObject = camStream;
+    await video.play();
+  } catch(err){
+    alert('לא הצלחנו לגשת למצלמה: ' + err.message);
+    finishFound(char, null);
+    return;
+  }
+
+  function resize(){
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const startTime = performance.now();
+  let capturedDataUrl = null;
+
+  function frame(now){
+    const t = now - startTime;
+    const cw = canvas.width, ch = canvas.height;
+
+    // draw camera feed covering canvas
+    const vw = video.videoWidth || cw, vh = video.videoHeight || ch;
+    const scale = Math.max(cw/vw, ch/vh);
+    const dw = vw*scale, dh = vh*scale;
+    camCtx.drawImage(video, (cw-dw)/2, (ch-dh)/2, dw, dh);
+
+    // draw character (chroma-key video if provided, else placeholder animation)
+    drawCharacterFrame(camCtx, char, t, cw, ch);
+
+    // reveal title partway through
+    if (t > 600 && !$('found-title').textContent){
+      $('found-title').textContent = `${char.emoji} מצאת את ה${char.name}!`;
+      $('found-desc').textContent = char.desc;
+    }
+
+    // auto-capture near the end of the animation
+    if (!capturedDataUrl && t > FOUND_ANIM_MS - 300){
+      capturedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    }
+
+    if (t < FOUND_ANIM_MS){
+      camAnimFrame = requestAnimationFrame(frame);
+    } else {
+      window.removeEventListener('resize', resize);
+      finishFound(char, capturedDataUrl);
+    }
+  }
+  camAnimFrame = requestAnimationFrame(frame);
+}
+
+// Placeholder "dance" animation. If char.videoUrl is set, this instead
+// draws the chroma-keyed video frame (green background removed).
+let chromaVideoEls = {}; // char.id -> hidden <video> element (lazy-created)
+function drawCharacterFrame(ctx, char, t, cw, ch){
+  const size = Math.min(cw,ch) * 0.55;
+  const cx = cw/2, cy = ch*0.42;
+
+  if (char.videoUrl){
+    let v = chromaVideoEls[char.id];
+    if (!v){
+      v = document.createElement('video');
+      v.src = char.videoUrl; v.crossOrigin='anonymous'; v.muted=true; v.loop=true; v.playsInline=true;
+      v.play().catch(()=>{});
+      chromaVideoEls[char.id] = v;
+    }
+    if (v.readyState >= 2){
+      // draw video frame off-screen, chroma-key remove green, draw onto ctx
+      const off = drawCharacterFrame._off || (drawCharacterFrame._off = document.createElement('canvas'));
+      off.width = v.videoWidth; off.height = v.videoHeight;
+      const octx = off.getContext('2d');
+      octx.drawImage(v, 0, 0);
+      const frameData = octx.getImageData(0,0,off.width,off.height);
+      const d = frameData.data;
+      for (let i=0;i<d.length;i+=4){
+        const r=d[i], g=d[i+1], b=d[i+2];
+        if (g > 90 && g > r*1.25 && g > b*1.25){ d[i+3] = 0; } // remove greenscreen
+      }
+      octx.putImageData(frameData,0,0);
+      const ratio = off.width/off.height;
+      const dh = size, dw = size*ratio;
+      ctx.drawImage(off, cx-dw/2, cy-dh/2, dw, dh);
+    }
+    return;
+  }
+
+  // --- placeholder animation: bouncing / rotating glowing orb in element color ---
+  const bounce = Math.sin(t/260) * 14;
+  const rot = (t/900) % (Math.PI*2);
+  const pulse = 1 + Math.sin(t/300)*0.06;
+
+  ctx.save();
+  ctx.translate(cx, cy + bounce);
+  ctx.rotate(rot*0.15);
+  ctx.scale(pulse, pulse);
+
+  const grad = ctx.createRadialGradient(0,0,size*0.1,0,0,size*0.5);
+  grad.addColorStop(0, char.color);
+  grad.addColorStop(1, char.color + '00');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(0,0,size*0.5,0,Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = char.color;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath(); ctx.arc(0,0,size*0.28,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.font = `${Math.round(size*0.35)}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(char.emoji, 0, 4);
+  ctx.restore();
+}
+
+function finishFound(char, snapshot){
+  cameraLock = false;
+  if (camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  if (camAnimFrame) cancelAnimationFrame(camAnimFrame);
+  $('camera-wrap').classList.remove('active');
+
+  foundIds.add(char.id);
+  if (snapshot) foundSnapshots[char.id] = snapshot;
+  const dot = $('dot-'+char.id);
+  if (dot){ dot.classList.add('found'); dot.style.background = char.color; }
+
+  if (foundIds.size === GAME_DATA.chars.length){
+    setTimeout(showFinal, 400);
+  }
+}
+
+/* =========================================================================
+   FINAL COLLAGE + SHARE
+   ========================================================================= */
+function showFinal(){
+  const canvas = $('collage-canvas');
+  const cols = GAME_DATA.chars.length <= 3 ? GAME_DATA.chars.length : 3;
+  const rows = Math.ceil(GAME_DATA.chars.length / cols);
+  const cellW = 360, cellH = 360;
+  canvas.width = cellW*cols;
+  canvas.height = cellH*rows + 70;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0d0f10';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  let loaded = 0;
+  const total = GAME_DATA.chars.length;
+  GAME_DATA.chars.forEach((c,i)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const col = i % cols, row = Math.floor(i/cols);
+      ctx.drawImage(img, col*cellW, row*cellH, cellW, cellH);
+      ctx.strokeStyle = c.color; ctx.lineWidth = 6;
+      ctx.strokeRect(col*cellW+3, row*cellH+3, cellW-6, cellH-6);
+      loaded++;
+      if (loaded === total){
+        ctx.fillStyle = '#eef1ee';
+        ctx.font = 'bold 34px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🌿🔥⛰️⚔️💧 מצאתי את חמשת האלמנטים!', canvas.width/2, canvas.height-25);
+      }
+    };
+    img.src = foundSnapshots[c.id] || '';
+  });
+
+  $('final-modal').classList.add('active');
+}
+
+$('btn-share-collage').addEventListener('click', async ()=>{
+  const canvas = $('collage-canvas');
+  canvas.toBlob(async (blob)=>{
+    const file = new File([blob], 'five-elements.jpg', { type:'image/jpeg' });
+    if (navigator.canShare && navigator.canShare({ files:[file] })){
+      try{
+        await navigator.share({ files:[file], title:'חמשת האלמנטים', text:'מצאתי את חמשת האלמנטים בתובל!' });
+        return;
+      } catch(e){ /* user cancelled or unsupported, fall through */ }
+    }
+    // fallback: download + optional whatsapp text link
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'five-elements.jpg'; a.click();
+    if (ORGANIZER_PHONE){
+      const msg = encodeURIComponent('מצאתי את חמשת האלמנטים! (מצרף/ת תמונה בהודעה הבאה)');
+      window.open(`https://wa.me/${ORGANIZER_PHONE}?text=${msg}`, '_blank');
+    } else {
+      alert('התמונה הורדה — שתפו אותה ידנית בוואטסאפ');
+    }
+  }, 'image/jpeg', 0.9);
+});
+
+/* init */
+if (GAME_DATA) annotateRadius();
+</script>
+</body>
+</html>
