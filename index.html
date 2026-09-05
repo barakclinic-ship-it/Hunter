@@ -251,15 +251,28 @@ video#cam-video{ display:none; }
 </div>
 
 <!-- ===================== PERMISSIONS ===================== -->
-<div id="screen-permissions" class="screen">
+<div id="screen-permissions" class="screen" style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
   <button class="btn-home" id="btn-home-perms" type="button">בית</button>
-  <h1 class="title">לפני שיוצאים לדרך</h1>
+  <div class="hero" id="perms-logo" style="width:74px; height:74px; margin-bottom:6px;"></div>
+  <h1 class="title" style="color:var(--amber);">לפני שיוצאים לדרך</h1>
   <p class="sub">האפליקציה צריכה גישה למיקום ולמצלמה כדי שתוכלו למצוא את הדמויות.</p>
-  <div class="card">
-    <div class="row" style="margin-bottom:10px;"><span>📍 מיקום</span><span class="status-line" id="badge-geo">נדרש</span></div>
-    <div class="row"><span>🧭 מצפן</span><span class="status-line" id="badge-compass">נדרש</span></div>
+  <div class="card" style="width:100%; max-width:340px; border-color:#3a2a32; background:linear-gradient(160deg,var(--bg1),var(--bg2));">
+    <div class="row" style="margin-bottom:14px;">
+      <span style="display:flex; align-items:center; gap:10px;">
+        <span style="width:38px; height:38px; border-radius:50%; background:linear-gradient(160deg,var(--amber),var(--ember)); display:flex; align-items:center; justify-content:center; font-size:18px;">📍</span>
+        מיקום
+      </span>
+      <span class="status-line" id="badge-geo">נדרש</span>
+    </div>
+    <div class="row">
+      <span style="display:flex; align-items:center; gap:10px;">
+        <span style="width:38px; height:38px; border-radius:50%; background:linear-gradient(160deg,var(--amber),var(--ember)); display:flex; align-items:center; justify-content:center; font-size:18px;">🧭</span>
+        מצפן
+      </span>
+      <span class="status-line" id="badge-compass">נדרש</span>
+    </div>
   </div>
-  <button class="btn" id="btn-grant-perms">אשר גישה והתחל</button>
+  <button class="btn" id="btn-grant-perms" style="max-width:340px; margin-top:6px;">אשר גישה והתחל</button>
   <p class="sub" id="perm-error" style="color:var(--ember);"></p>
 </div>
 
@@ -340,6 +353,7 @@ function bearing(a,b,c,d){ const tr=x=>x*Math.PI/180,td=x=>x*180/Math.PI;
   const y=Math.sin(tr(d-b))*Math.cos(tr(c)), x=Math.cos(tr(a))*Math.sin(tr(c))-Math.sin(tr(a))*Math.cos(tr(c))*Math.cos(tr(d-b));
   return (td(Math.atan2(y,x))+360)%360; }
 $('intro-logo').innerHTML = '<img src="hunter-logo.png" alt="HUNTER" style="width:120px; height:120px; border-radius:50%;">';
+$('perms-logo').innerHTML = '<img src="hunter-logo.png" alt="HUNTER" style="width:74px; height:74px; border-radius:50%;">';
 $('editor-logo-row').innerHTML = '<img src="hunter-logo.png" alt="HUNTER" style="width:38px; height:38px; border-radius:50%;"><div class="brand-word" style="font-size:22px;">HUNTER</div>';
 
 /* ===================== EDITOR ===================== */
@@ -909,7 +923,12 @@ if (GAME_DATA){
   $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`;
 }
 
-showScreen(params.get('editor')==='1' ? (initEditor(), 'screen-editor') : 'screen-intro');
+// מי שקיבל קישור אמיתי לצוד (עם דמויות) נכנס ישר לאישור מיקום/מצלמה —
+// לא צריך לעבור דרך מסך הבית עם שני העיגולים, זה רלוונטי רק למארגן.
+let initialScreen = 'screen-intro';
+if (params.get('editor')==='1'){ initEditor(); initialScreen = 'screen-editor'; }
+else if (GAME_DATA && GAME_DATA.chars && GAME_DATA.chars.length){ initialScreen = 'screen-permissions'; }
+showScreen(initialScreen);
 
 $('circle-edit').addEventListener('click', ()=>{ initEditor(); showScreen('screen-editor'); });
 $('circle-play').addEventListener('click', ()=>{
