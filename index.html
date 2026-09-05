@@ -345,7 +345,7 @@ function renderRoster(){
   roster.forEach(c=>{
     const el = document.createElement('div');
     el.className = 'char-card'; el.style.setProperty('--c', c.color);
-    const img = charImage(c);
+    const img = c.image || c.imageUrl || '';
     el.innerHTML = `
       <div class="char-top">
         <label class="avatar" id="av-${c.uid}" style="cursor:pointer;">
@@ -389,7 +389,7 @@ function renderRoster(){
     const uid = +e.target.dataset.img, file = e.target.files[0]; if (!file) return;
     const dataUrl = await compressImage(file, 420, 0.72);
     const c = roster.find(r=>r.uid===uid);
-    c.image = dataUrl; c.imageUrl = ''; // תמונה חדשה שהועלתה תופסת עדיפות על פני תמונת ברירת מחדל
+    c.image = dataUrl; c.imageUrl = ''; c.imageExported = false; // תמונה חדשה — תיוצא כקובץ חדש בפעם הבאה שיוצרים קישור
     renderRoster();
     updateGenerateState();
   }));
@@ -440,7 +440,36 @@ function initEditor(){
   renderRoster();
 }
 
+// ממיר תמונה מוטמעת (base64) לקובץ להורדה עם שם קבוע, כדי שהקישור עצמו
+// יישא רק שם קובץ קטן ולא את בייטי התמונה. מוריד את הקובץ ומחזיר את השם שנבחר לו.
+function exportImageFile(dataUrl, baseName, uid){
+  const mime = (dataUrl.match(/^data:(image\/\w+);/) || [,'image/jpeg'])[1];
+  const ext = mime === 'image/png' ? 'png' : 'jpg';
+  const safe = (baseName || 'character').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g,'') || 'character';
+  const filename = `${safe}-${uid}.${ext}`;
+  const bytes = atob(dataUrl.split(',')[1]);
+  const arr = new Uint8Array(bytes.length);
+  for (let i=0;i<bytes.length;i++) arr[i] = bytes.charCodeAt(i);
+  const blob = new Blob([arr], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  return filename;
+}
+
 function generateGameLink(){
+  // לכל דמות עם תמונה מוטמעת (הועלתה ישירות) שעדיין לא יוצאה כקובץ — מייצאים אותה
+  // עכשיו כקובץ קטן עם שם קבוע, כדי שהקישור עצמו יישאר קצר תמיד, אוטומטית, בלי שתצטרכו
+  // לחשוב על זה. הקובץ יורד למחשב/לטלפון — צריך להעלות אותו לאותה תיקייה של index.html.
+  const toUpload = [];
+  roster.forEach(c=>{
+    if (c.image && !c.imageExported){
+      const filename = exportImageFile(c.image, c.name, c.uid);
+      c.imageUrl = filename; c.imageExported = true;
+      toUpload.push(filename);
+    }
+  });
+
   const data = buildPayload();
   const link = `${location.origin}${location.pathname}#g=${b64enc(JSON.stringify(data))}`;
   $('generated-link').textContent = link;
@@ -451,12 +480,10 @@ function generateGameLink(){
     window.open(`https://wa.me/?text=${msg}`, '_blank');
   };
 
-  // הקישור ארוך מדי בד"כ כי דמות מסוימת עדיין נושאת תמונה מוטמעת (הועלתה ישירות)
-  // במקום להתארח כקובץ חיצוני קטן. מזהים בדיוק אילו ומציעים פתרון ברור.
-  if (link.length > 2200){
-    const heavy = data.chars.filter(c=>c.image && !c.imageUrl).map(c=>c.name);
-    const names = heavy.length ? heavy.join(', ') : 'אחת הדמויות';
-    alert(`הקישור יצא ארוך (${Math.round(link.length/1024)}KB) — כנראה לא ילחץ בוואטסאפ.\n\nהסיבה: ${names} כוללת תמונה שהועלתה ישירות ולכן "נכנסת" לתוך הקישור עצמו.\n\nפתרון: שלחו לי כאן בצ'אט את התמונה הזו ואטמיע אותה בקוד (כמו שעשיתי לחמשת האלמנטים) — זה יקצר את הקישור למאות בודדות של תווים במקום עשרות אלפים.`);
+  if (toUpload.length){
+    alert(`ירדו ${toUpload.length} קבצי תמונה חדשים:\n${toUpload.join('\n')}\n\nהעלו אותם לאותה תיקייה שבה נמצא ה-index.html בגיטהאב (Add file → Upload files) — ואז הקישור הקצר הזה יעבוד.`);
+  } else if (link.length > 2200){
+    alert(`הקישור יצא ארוך (${Math.round(link.length/1024)}KB) — כנראה לא ילחץ בוואטסאפ. נסו להסיר דמויות או ליצור מחדש.`);
   }
 }
 
