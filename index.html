@@ -108,9 +108,11 @@ code.linkbox{
 .dots{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; justify-content:center; }
 .dot{ width:13px; height:13px; border-radius:50%; border:2px solid var(--panel-b); background:transparent; }
 .dot.found{ border-color:transparent; }
-#radar-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+#radar-wrap{ flex:1; display:flex; flex-direction:column; min-height:0; }
+#radar-compass-half{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+#radar-map-half{ flex:1; min-height:0; display:flex; padding-bottom:6px; }
 .radar-ring{
-  width:min(72vw,300px); height:min(72vw,300px); border-radius:50%; position:relative;
+  width:min(50vw,220px); height:min(50vw,220px); border-radius:50%; position:relative;
   background:
     repeating-radial-gradient(circle, transparent 0 13%, #ffffff08 13% 14%),
     radial-gradient(circle at 50% 50%, var(--bg2), var(--bg0));
@@ -124,16 +126,15 @@ code.linkbox{
 @keyframes spin{ to{ transform:rotate(360deg);} }
 .arrow{
   position:absolute; width:0; height:0; top:50%; left:50%;
-  border-left:16px solid transparent; border-right:16px solid transparent;
-  border-bottom:56px solid var(--c,var(--amber)); transform-origin:50% 100%;
-  margin-top:-56px; margin-left:-16px; transition:transform .25s linear, border-bottom-color .3s ease; z-index:2;
+  border-left:12px solid transparent; border-right:12px solid transparent;
+  border-bottom:42px solid var(--c,var(--amber)); transform-origin:50% 100%;
+  margin-top:-42px; margin-left:-12px; transition:transform .25s linear, border-bottom-color .3s ease; z-index:2;
 }
-.center-emoji{ font-size:36px; z-index:2; }
+.center-emoji{ font-size:28px; z-index:2; }
 #dist-text{ font-size:14px; color:var(--muted); }
 #temp-text{ font-size:26px; font-weight:700; font-family:'Rubik',sans-serif; margin:2px 0 18px; }
 #radar-target-name{ text-align:center; }
-#live-map{ display:none; width:min(90vw,340px); height:200px; border-radius:var(--rmd); overflow:hidden; margin-top:12px; border:1px solid var(--panel-b); }
-#live-map.active{ display:block; }
+#live-map{ width:100%; height:100%; border-radius:var(--rmd); overflow:hidden; border:1px solid var(--panel-b); }
 .me-dot{ width:16px; height:16px; border-radius:50%; background:var(--amber); border:3px solid #fff; box-shadow:0 0 0 4px #d16a9044; }
 
 /* ---------- camera (stays dark — legibility over a live camera feed) ---------- */
@@ -245,16 +246,19 @@ video#cam-video{ display:none; }
   </div>
   <div class="dots" id="progress-dots"></div>
   <div id="radar-wrap">
-    <div class="radar-ring" id="radar-ring">
-      <div class="sweep" id="radar-sweep"></div>
-      <div class="arrow" id="radar-arrow"></div>
-      <div class="center-emoji" id="radar-emoji">🧭</div>
+    <div id="radar-compass-half">
+      <div class="radar-ring" id="radar-ring">
+        <div class="sweep" id="radar-sweep"></div>
+        <div class="arrow" id="radar-arrow"></div>
+        <div class="center-emoji" id="radar-emoji">🧭</div>
+      </div>
+      <div id="dist-text">מחפשים מיקום...</div>
+      <div id="temp-text">—</div>
+      <p class="sub" id="radar-target-name"></p>
     </div>
-    <div id="dist-text">מחפשים מיקום...</div>
-    <div id="temp-text">—</div>
-    <p class="sub" id="radar-target-name"></p>
-    <button class="btn ghost sm" id="btn-toggle-map" type="button" style="border:1px solid #333;">מפה חיה</button>
-    <div id="live-map"></div>
+    <div id="radar-map-half">
+      <div id="live-map"></div>
+    </div>
   </div>
 </div>
 
@@ -495,6 +499,7 @@ function generateGameLink(){
 /* ===================== PLAYER: PERMISSIONS ===================== */
 let userHeading = 0, userPos = null, foundIds = new Set(), foundSnapshots = {};
 let headingSin = 0, headingCos = 1; // ממוצע מעגלי לסינון רעש המצפן (ר' onOrientation)
+let radarIntervalId = null, huntCompleted = false; // עוצרים את לולאת הרדאר כשסיימו, כדי שהיא לא תמשיך לנסות "לסיים" שוב ושוב
 
 $('btn-grant-perms').addEventListener('click', async ()=>{
   $('perm-error').textContent = '';
@@ -520,23 +525,14 @@ function startPlayerLoop(){
   navigator.geolocation.watchPosition(pos=>{ userPos={lat:pos.coords.latitude,lng:pos.coords.longitude}; updateRadar(); updateLiveMap(); }, e=>console.warn(e), {enableHighAccuracy:true,maximumAge:2000});
   window.addEventListener('deviceorientationabsolute', onOrientation, true);
   window.addEventListener('deviceorientation', onOrientation, true);
-  setInterval(updateRadar, 800);
-  $('btn-toggle-map').addEventListener('click', toggleLiveMap);
+  huntCompleted = false;
+  radarIntervalId = setInterval(updateRadar, 800);
 }
 
-/* מפה חיה — מראה רק את המיקום שלי, לצורך אוריינטציה כללית בשטח.
-   בכוונה לא מציגה את המיקום המדויק של הדמות — זה היה הופך את החיפוש לקל מדי. */
+/* מפה חיה — מראה רק את המיקום שלי, לצורך אוריינטציה כללית בשטח, תמיד גלויה
+   (חצי תחתון של המסך). בכוונה לא מציגה את המיקום המדויק של הדמות —
+   זה היה הופך את החיפוש לקל מדי. */
 let liveMap = null, meMarker = null;
-function toggleLiveMap(){
-  const el = $('live-map');
-  el.classList.toggle('active');
-  $('btn-toggle-map').textContent = el.classList.contains('active') ? 'הסתר מפה' : 'מפה חיה';
-  if (el.classList.contains('active')){
-    if (!userPos){ alert('מחפש מיקום... נסה שוב עוד רגע'); el.classList.remove('active'); $('btn-toggle-map').textContent='מפה חיה'; return; }
-    if (!liveMap){ initLiveMap(); }
-    setTimeout(()=>liveMap && liveMap.invalidateSize(), 50);
-  }
-}
 function initLiveMap(){
   if (typeof L === 'undefined' || !userPos) return;
   liveMap = L.map('live-map', { zoomControl:false, attributionControl:false }).setView([userPos.lat, userPos.lng], 17);
@@ -544,7 +540,8 @@ function initLiveMap(){
   meMarker = L.marker([userPos.lat, userPos.lng], { icon: L.divIcon({ className:'me-dot', iconSize:[16,16] }) }).addTo(liveMap);
 }
 function updateLiveMap(){
-  if (!liveMap || !userPos) return;
+  if (!userPos) return;
+  if (!liveMap){ initLiveMap(); setTimeout(()=>liveMap && liveMap.invalidateSize(), 50); return; }
   meMarker.setLatLng([userPos.lat, userPos.lng]);
   liveMap.panTo([userPos.lat, userPos.lng]);
 }
@@ -574,7 +571,7 @@ let cameraLock = false;
 function updateRadar(){
   if (cameraLock) return;
   const t = nearestUnfound();
-  if (!t){ if (foundIds.size===GAME_DATA.chars.length) showFinal(); return; }
+  if (!t){ if (foundIds.size===GAME_DATA.chars.length) completeHunt(); return; }
   const { char, dist } = t;
   const brg = userPos ? bearing(userPos.lat,userPos.lng,char.lat,char.lng) : 0;
   $('radar-arrow').style.transform = `rotate(${brg-userHeading}deg)`;
@@ -735,7 +732,17 @@ function finishFound(char, snapshot){
   if (snapshot) foundSnapshots[char.id] = snapshot;
   const dot = $('dot-'+char.id);
   if (dot){ dot.classList.add('found'); dot.style.background = char.color; }
-  if (GAME_DATA && foundIds.size === GAME_DATA.chars.length) setTimeout(showFinal, 400);
+  if (GAME_DATA && foundIds.size === GAME_DATA.chars.length) setTimeout(completeHunt, 400);
+}
+
+// נקודת-כניסה יחידה לסיום הציד — בלעדיה, גם ה-setTimeout כאן וגם הבדיקה
+// שברדאר (updateRadar, כל 800ms) היו קוראים ל-showFinal שוב ושוב, בלי הפסקה,
+// וזה מה שגרם לקונפטי "לקפוץ" מחדש ולמסך הניצחון להבהב.
+function completeHunt(){
+  if (huntCompleted) return;
+  huntCompleted = true;
+  if (radarIntervalId){ clearInterval(radarIntervalId); radarIntervalId = null; }
+  showFinal();
 }
 
 /* ===================== FINAL COLLAGE + SHARE ===================== */
@@ -844,13 +851,16 @@ $('btn-share-collage').addEventListener('click', ()=>{
 });
 $('btn-final-home').addEventListener('click', ()=>{
   $('final-modal').classList.remove('active');
+  if (radarIntervalId){ clearInterval(radarIntervalId); radarIntervalId = null; }
   showScreen('screen-intro');
 });
 $('btn-final-again').addEventListener('click', ()=>{
   $('final-modal').classList.remove('active');
   foundIds = new Set(); foundSnapshots = {};
+  huntCompleted = false;
   document.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('found'); d.style.background=''; });
   showScreen('screen-radar');
+  if (!radarIntervalId) radarIntervalId = setInterval(updateRadar, 800);
   updateRadar();
 });
 /* ===================== ROUTER ===================== */
@@ -858,7 +868,12 @@ const params = new URLSearchParams(location.search);
 const hashMatch = location.hash.match(/g=([^&]+)/);
 let GAME_DATA = null;
 if (hashMatch){ try{ GAME_DATA = JSON.parse(b64dec(decodeURIComponent(hashMatch[1]))); }catch(e){ console.error('bad link', e); } }
-if (GAME_DATA){ $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`; }
+if (GAME_DATA){
+  $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`;
+  // מי שפתח קישור משחק אמיתי (קבוצה שקיבלה קישור לצוד) הוא שחקן, לא המארגן —
+  // מסתירים לו את עיגול העריכה כדי שלא ייכנס בטעות לעורך ויבלבל את המשחק.
+  $('circle-edit').style.display = 'none';
+}
 
 showScreen(params.get('editor')==='1' ? (initEditor(), 'screen-editor') : 'screen-intro');
 
