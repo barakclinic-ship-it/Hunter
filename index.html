@@ -223,7 +223,7 @@ video#cam-video{ display:none; }
     <div id="dist-text">מחפשים מיקום...</div>
     <div id="temp-text">—</div>
     <p class="sub" id="radar-target-name"></p>
-    <button class="btn ghost sm" id="btn-toggle-map" type="button" style="border:1px solid #333;">🗺️ מפה חיה</button>
+    <button class="btn ghost sm" id="btn-toggle-map" type="button" style="border:1px solid #333;">מפה חיה</button>
     <div id="live-map"></div>
   </div>
 </div>
@@ -232,7 +232,11 @@ video#cam-video{ display:none; }
 <div id="camera-wrap">
   <video id="cam-video" autoplay playsinline muted></video>
   <canvas id="cam-canvas"></canvas>
-  <div id="found-overlay"><h2 id="found-title"></h2><p id="found-desc"></p></div>
+  <div id="found-overlay">
+    <h2 id="found-title"></h2>
+    <p id="found-desc"></p>
+    <button class="btn hidden" id="btn-confirm-found" type="button" style="max-width:260px; margin-top:16px; pointer-events:auto;">זהו — תפוס!</button>
+  </div>
 </div>
 
 <!-- ===================== FINAL ===================== -->
@@ -249,7 +253,6 @@ video#cam-video{ display:none; }
 /* ===================== CONFIG ===================== */
 const RADIUS_DEFAULT = 20;
 const ORGANIZER_PHONE = ""; // "972501234567" — ריק = אין ברירת מחדל
-const FOUND_ANIM_MS = 4500;
 const PALETTE = ['#ffb020','#e0524a','#3ea86b','#3f74c9','#c9a24b','#8f6fe0','#e0529c','#4fd1c5'];
 const EMOJIS  = ['🎯','⭐','🦊','🐉','🌟','🔥','💎','🍃','🦋','🐺'];
 const DEFAULT_PROJECT_NAME = "חמשת האלמנטים";
@@ -318,7 +321,7 @@ function renderRoster(){
           <label class="f">אימוג'י (אם אין תמונה)</label>
           <input type="text" maxlength="4" value="${c.emoji}" data-f="emoji" data-uid="${c.uid}">
         </div>
-        <label class="file-btn">📷 בדיקה מהירה (תמונה מוטמעת)
+        <label class="file-btn">בדיקה מהירה (תמונה מוטמעת)
           <input type="file" accept="image/*" data-img="${c.uid}">
         </label>
         <div class="full">
@@ -331,8 +334,8 @@ function renderRoster(){
         </div>
       </div>
       <div class="row" style="margin-bottom:8px;">
-        <button class="btn secondary sm" data-loc="${c.uid}" type="button">📍 קבע מיקום כאן</button>
-        <button class="btn ghost sm" data-preview="${c.uid}" type="button" style="border:1px solid #333;">🧪 תצוגה מקדימה</button>
+        <button class="btn secondary sm" data-loc="${c.uid}" type="button">קבע מיקום כאן</button>
+        <button class="btn ghost sm" data-preview="${c.uid}" type="button" style="border:1px solid #333;">תצוגה מקדימה</button>
       </div>
       <div class="status-line ${c.lat?'ok':''}" id="loc-status-${c.uid}">${c.lat ? `מיקום נשמר ✓ (${c.lat.toFixed(5)}, ${c.lng.toFixed(5)})` : 'עדיין לא נקבע מיקום'}</div>
     `;
@@ -358,11 +361,11 @@ function renderRoster(){
     navigator.geolocation.getCurrentPosition(pos=>{
       const c = roster.find(r=>r.uid===uid);
       c.lat = pos.coords.latitude; c.lng = pos.coords.longitude;
-      e.target.textContent = '📍 עדכן מיקום';
+      e.target.textContent = 'עדכן מיקום';
       $('loc-status-'+uid).textContent = `מיקום נשמר ✓ (${c.lat.toFixed(5)}, ${c.lng.toFixed(5)})`;
       $('loc-status-'+uid).classList.add('ok');
       updateGenerateState();
-    }, err=>{ alert('שגיאת מיקום: '+err.message); e.target.textContent='📍 קבע מיקום כאן'; }, {enableHighAccuracy:true,timeout:15000});
+    }, err=>{ alert('שגיאת מיקום: '+err.message); e.target.textContent='קבע מיקום כאן'; }, {enableHighAccuracy:true,timeout:15000});
   }));
   wrap.querySelectorAll('[data-img]').forEach(inp=>inp.addEventListener('change', async e=>{
     const uid = +e.target.dataset.img, file = e.target.files[0]; if (!file) return;
@@ -484,9 +487,9 @@ let liveMap = null, meMarker = null;
 function toggleLiveMap(){
   const el = $('live-map');
   el.classList.toggle('active');
-  $('btn-toggle-map').textContent = el.classList.contains('active') ? '🗺️ הסתר מפה' : '🗺️ מפה חיה';
+  $('btn-toggle-map').textContent = el.classList.contains('active') ? 'הסתר מפה' : 'מפה חיה';
   if (el.classList.contains('active')){
-    if (!userPos){ alert('מחפש מיקום... נסה שוב עוד רגע'); el.classList.remove('active'); $('btn-toggle-map').textContent='🗺️ מפה חיה'; return; }
+    if (!userPos){ alert('מחפש מיקום... נסה שוב עוד רגע'); el.classList.remove('active'); $('btn-toggle-map').textContent='מפה חיה'; return; }
     if (!liveMap){ initLiveMap(); }
     setTimeout(()=>liveMap && liveMap.invalidateSize(), 50);
   }
@@ -549,6 +552,7 @@ async function triggerFound(char){
   cameraLock = true;
   $('camera-wrap').classList.add('active');
   $('found-title').textContent=''; $('found-desc').textContent='';
+  $('btn-confirm-found').classList.add('hidden');
   const video=$('cam-video'), canvas=$('cam-canvas');
   camCtx = canvas.getContext('2d');
   try{
@@ -559,34 +563,81 @@ async function triggerFound(char){
   function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
   resize(); window.addEventListener('resize', resize);
 
-  const t0 = performance.now(); let snap = null;
+  // "עיגון" הדמות לכיוון מצפן קבוע — כמו AR אמיתי: מסתובבים 360 ורואים אותה
+  // רק כשפונים לאותו כיוון, בדיוק כמו שהיא "יושבת" בפינה מסוימת בשטח.
+  const anchorHeading = userHeading;
+  const t0 = performance.now();
+  let confirmed = false;
+  const smooth = { x:0, size:1, inited:false }; // מצב מוחלק בין פריימים — כדי שתזוזה/גודל לא "יקפצו" עם כל עדכון GPS/מצפן
+
   function frame(now){
+    if (confirmed) return;
     const t = now - t0, cw=canvas.width, ch=canvas.height;
     const vw=video.videoWidth||cw, vh=video.videoHeight||ch, sc=Math.max(cw/vw,ch/vh), dw=vw*sc, dh=vh*sc;
     camCtx.drawImage(video, (cw-dw)/2, (ch-dh)/2, dw, dh);
-    drawCharacterFrame(camCtx, char, t, cw, ch);
-    if (t>600 && !$('found-title').textContent){ $('found-title').textContent = `${charImage(char)?'':char.emoji+' '}מצאת את ${char.name}!`; $('found-desc').textContent = 'תוסיפו כאן טקסט/תיאור לדמות בעורך אם תרצו.'; }
-    if (!snap && t > FOUND_ANIM_MS-300) snap = canvas.toDataURL('image/jpeg',0.85);
-    if (t < FOUND_ANIM_MS) camAnimFrame = requestAnimationFrame(frame);
-    else { window.removeEventListener('resize', resize); finishFound(char, snap); }
+    drawCharacterFrame(camCtx, char, t, cw, ch, anchorHeading, smooth);
+    if (t>600 && !$('found-title').textContent){
+      $('found-title').textContent = `${charImage(char)?'':char.emoji+' '}מצאת את ${char.name}!`;
+      $('found-desc').textContent = 'תוסיפו כאן טקסט/תיאור לדמות בעורך אם תרצו.';
+      $('btn-confirm-found').classList.remove('hidden');
+    }
+    camAnimFrame = requestAnimationFrame(frame);
   }
   camAnimFrame = requestAnimationFrame(frame);
+
+  $('btn-confirm-found').onclick = ()=>{
+    if (confirmed) return;
+    confirmed = true;
+    const snap = canvas.toDataURL('image/jpeg',0.85);
+    window.removeEventListener('resize', resize);
+    finishFound(char, snap);
+  };
 }
 
-function drawCharacterFrame(ctx, char, t, cw, ch){
+function drawCharacterFrame(ctx, char, t, cw, ch, anchorHeading, smooth){
   const groundY = ch*0.86;              // קו "רצפה" שהדמות עומדת עליו
-  const bob = Math.sin(t/700)*4;        // נדנוד עדין בלבד — בלי סיבוב, בלי מתיחה (זה מה שיצר את ה"עיוות")
+  const bob = Math.sin(t/700)*4;        // נדנוד עדין בלבד — בלי סיבוב, בלי מתיחה
   const imgSrc = charImage(char);
 
+  // מיקום אופקי לפי הפרש המצפן מהכיוון שבו "עוגנה" הדמות — מדמה שהיא קבועה במרחב
+  const FOV = 50; // מעלות רוחב-שדה שממופות לרוחב המסך
+  const anchor = (anchorHeading==null) ? 0 : anchorHeading;
+  const diff = ((userHeading - anchor + 540) % 360) - 180; // מנורמל ל־180-..180
+  const visible = Math.abs(diff) <= FOV/2 + 18;
+  const targetXOffset = (diff/(FOV/2)) * (cw*0.6);
+
+  if (!visible){ drawOffscreenHint(ctx, diff, cw, ch, char.color); if (smooth) smooth.inited=false; return; }
+
+  // ככל שמתקרבים פיזית לנקודה — הדמות גדלה; ככל שמתרחקים (עד רדיוס הגילוי) — היא מתכווצת
+  let targetSizeFactor = 1;
+  if (userPos && char.lat!=null && char.lng!=null){
+    const near = 3, far = (GAME_DATA && GAME_DATA.radius) || RADIUS_DEFAULT;
+    const d = haversine(userPos.lat, userPos.lng, char.lat, char.lng);
+    targetSizeFactor = 1 - Math.min(1, Math.max(0, (d-near)/(far-near))) * 0.55; // 1 (קרוב) .. 0.45 (בקצה הרדיוס)
+  }
+
+  // הרחקה/גודל אמיתיים מתעדכנים בקפיצות (GPS/מצפן מגיעים כל שנייה-שתיים, לא כל פריים) —
+  // בלי החלקה זה היה נראה כאילו הפסל "קופץ" לגודל אחר. במקום זה זזים אליהם בהדרגה כל פריים,
+  // כך שמרגיש כמו פסל אמיתי שמתקרב/מתרחק ברציפות כשמתקדמים לעברו.
+  let xOffset = targetXOffset, sizeFactor = targetSizeFactor;
+  if (smooth){
+    if (!smooth.inited){ smooth.x = targetXOffset; smooth.size = targetSizeFactor; smooth.inited = true; }
+    else {
+      smooth.x += (targetXOffset - smooth.x) * 0.08;
+      smooth.size += (targetSizeFactor - smooth.size) * 0.04;
+    }
+    xOffset = smooth.x; sizeFactor = smooth.size;
+  }
+
   function drawGrounded(source, naturalW, naturalH){
-    const targetH = ch*0.8;                       // "עומדת מולך" בגובה כמעט מלא
+    const targetH = ch*0.8*sizeFactor;
     const scale = targetH/naturalH;
     const w = naturalW*scale, h = targetH;
-    const x = cw/2 - w/2, y = groundY - h + bob;
+    const x = cw/2 - w/2 + xOffset, y = groundY - h + bob;
     ctx.save();
     ctx.globalAlpha = 0.32;
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(cw/2, groundY+4, w*0.3, 9, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cw/2+xOffset, groundY+4, w*0.3, 9, 0, 0, Math.PI*2); ctx.fill();
     ctx.restore();
     ctx.drawImage(source, x, y, w, h);
   }
@@ -614,12 +665,24 @@ function drawCharacterFrame(ctx, char, t, cw, ch){
   }
 
   // אין תמונה בכלל — פולבק: כדור זוהר עם אימוג'י (ללא דמות מצוירת)
-  const size = Math.min(cw,ch)*0.4;
-  ctx.save(); ctx.translate(cw/2, groundY - size*0.5 + bob);
+  const size = Math.min(cw,ch)*0.4*sizeFactor;
+  ctx.save(); ctx.translate(cw/2+xOffset, groundY - size*0.5 + bob);
   ctx.fillStyle = char.color; ctx.globalAlpha = 0.9;
   ctx.beginPath(); ctx.arc(0,0,size*0.28,0,Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
   ctx.font = `${Math.round(size*0.35)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(char.emoji, 0, 4);
+  ctx.restore();
+}
+
+// כשהדמות "מאחורי הגב" — חץ קטן בקצה המסך מראה לאן לפנות כדי למצוא אותה שוב
+function drawOffscreenHint(ctx, diff, cw, ch, color){
+  const y = ch*0.5, side = diff > 0 ? cw-34 : 34, dir = diff > 0 ? 1 : -1;
+  ctx.save();
+  ctx.translate(side, y);
+  ctx.fillStyle = color; ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.moveTo(dir*14, 0); ctx.lineTo(dir*-10, -16); ctx.lineTo(dir*-10, 16);
+  ctx.closePath(); ctx.fill();
   ctx.restore();
 }
 
