@@ -272,11 +272,16 @@ video#cam-video{ display:none; }
 
 <!-- ===================== FINAL ===================== -->
 <div id="final-modal">
+  <canvas id="confetti-canvas" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;"></canvas>
   <div class="box">
     <h1 class="title" id="final-title" style="font-size:19px;">מצאתם את כל הדמויות! 🎉</h1>
     <canvas id="collage-canvas"></canvas>
     <button class="btn" id="btn-share-collage">שתפו לוואטסאפ</button>
     <p class="sub" style="margin-top:10px;">בשיתוף בחרו את איש הקשר / קבוצת הריטריט</p>
+    <div class="row" style="margin-top:6px;">
+      <button class="btn secondary sm" id="btn-final-again" type="button">חפשו שוב</button>
+      <button class="btn ghost sm" id="btn-final-home" type="button" style="border:1px solid #333;">חזרה לדף הבית</button>
+    </div>
   </div>
 </div>
 
@@ -734,13 +739,14 @@ function finishFound(char, snapshot){
 }
 
 /* ===================== FINAL COLLAGE + SHARE ===================== */
-// מצייר תמונה לתוך תא בלי לעוות פרופורציות — גוזר מהמרכז (כמו object-fit:cover בCSS)
-// במקום למתוח את כל התמונה לריבוע (זה מה שגרם למראה ה"מרוח"/מעוות בקולאז')
-function drawImageCover(ctx, img, dx, dy, dw, dh){
+// מצייר תמונה לתוך תא בלי לעוות פרופורציות — גוזר כמו object-fit:cover, אבל מוטה כלפי מעלה
+// (לא ממורכז אנכית) כי בתמונת גוף מלא הפנים נמצאות קרוב לחלק העליון של הפריים, לא באמצע.
+function drawImageCover(ctx, img, dx, dy, dw, dh, vAnchor){
+  vAnchor = vAnchor==null ? 0.5 : vAnchor;
   const srcRatio = img.width/img.height, dstRatio = dw/dh;
   let sx=0, sy=0, sw=img.width, sh=img.height;
   if (srcRatio > dstRatio){ sw = img.height*dstRatio; sx = (img.width-sw)/2; }
-  else { sh = img.width/dstRatio; sy = (img.height-sh)/2; }
+  else { sh = img.width/dstRatio; sy = (img.height-sh)*vAnchor; }
   ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
@@ -754,20 +760,74 @@ function showFinal(){
   ctx.scale(dpr, dpr);
   ctx.fillStyle = '#0a0e1a'; ctx.fillRect(0,0,cell*cols,cell*rows+70);
   let loaded = 0;
+  const totalCells = cols*rows;
+
+  function finishIfDone(){
+    if (loaded !== n) return;
+    // תא/ים ריקים (יש פחות דמויות מהרשת) — ממלאים בלוגו של HUNTER במקום להשאיר ריק
+    const emptyCells = totalCells - n;
+    if (emptyCells > 0){
+      const logo = new Image();
+      logo.onload = ()=>{
+        for (let i=n; i<totalCells; i++){
+          const col=i%cols, row=Math.floor(i/cols);
+          const pad = cell*0.22;
+          ctx.drawImage(logo, col*cell+pad, row*cell+pad, cell-pad*2, cell-pad*2);
+        }
+        drawFooter();
+      };
+      logo.onerror = drawFooter;
+      logo.src = 'hunter-logo.png';
+    } else drawFooter();
+  }
+  function drawFooter(){
+    ctx.fillStyle='#f5f3ea'; ctx.font='bold 32px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(`🎯 ${GAME_DATA.project} — הושלם!`, (cell*cols)/2, cell*rows+45);
+  }
+
   GAME_DATA.chars.forEach((c,i)=>{
     const img = new Image();
     img.onload = ()=>{
       const col=i%cols, row=Math.floor(i/cols);
-      drawImageCover(ctx, img, col*cell, row*cell, cell, cell);
+      drawImageCover(ctx, img, col*cell, row*cell, cell, cell, 0.18); // 0.18 = מוטה כלפי מעלה, לשמור על הפנים בפריים
       ctx.strokeStyle=c.color; ctx.lineWidth=6; ctx.strokeRect(col*cell+3, row*cell+3, cell-6, cell-6);
-      if (++loaded === n){
-        ctx.fillStyle='#f5f3ea'; ctx.font='bold 32px sans-serif'; ctx.textAlign='center';
-        ctx.fillText(`🎯 ${GAME_DATA.project} — הושלם!`, (cell*cols)/2, cell*rows+45);
-      }
+      loaded++; finishIfDone();
     };
     img.src = foundSnapshots[c.id] || '';
   });
   $('final-modal').classList.add('active');
+  launchConfetti(GAME_DATA.chars.map(c=>c.color));
+}
+
+// קונפטי צבעוני נופל, בצבעי האלמנטים שנמצאו — חגיגה קטנה על מסך הניצחון.
+function launchConfetti(colors){
+  const canvas = $('confetti-canvas');
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  canvas.width = innerWidth*dpr; canvas.height = innerHeight*dpr;
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const pieces = [];
+  for (let i=0;i<140;i++){
+    pieces.push({
+      x: Math.random()*innerWidth, y: -20-Math.random()*innerHeight*0.5,
+      vx: (Math.random()-0.5)*2.2, vy: 2+Math.random()*3,
+      size: 5+Math.random()*6, rot: Math.random()*Math.PI*2, vr: (Math.random()-0.5)*0.3,
+      color: colors[Math.floor(Math.random()*colors.length)] || 'var(--amber)'
+    });
+  }
+  const start = performance.now(), duration = 3600;
+  function frame(now){
+    const t = now-start;
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    pieces.forEach(p=>{
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += 0.02;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.size/2,-p.size/3,p.size,p.size*0.66);
+      ctx.restore();
+    });
+    if (t < duration && $('final-modal').classList.contains('active')) requestAnimationFrame(frame);
+    else ctx.clearRect(0,0,innerWidth,innerHeight);
+  }
+  requestAnimationFrame(frame);
 }
 
 $('btn-share-collage').addEventListener('click', ()=>{
@@ -781,6 +841,17 @@ $('btn-share-collage').addEventListener('click', ()=>{
     if (ORGANIZER_PHONE){ window.open(`https://wa.me/${ORGANIZER_PHONE}?text=${encodeURIComponent('מצאתי את כל הדמויות! (מצרף תמונה)')}`, '_blank'); }
     else alert('התמונה הורדה — שתפו אותה ידנית בוואטסאפ');
   }, 'image/jpeg', 0.9);
+});
+$('btn-final-home').addEventListener('click', ()=>{
+  $('final-modal').classList.remove('active');
+  showScreen('screen-intro');
+});
+$('btn-final-again').addEventListener('click', ()=>{
+  $('final-modal').classList.remove('active');
+  foundIds = new Set(); foundSnapshots = {};
+  document.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('found'); d.style.background=''; });
+  showScreen('screen-radar');
+  updateRadar();
 });
 /* ===================== ROUTER ===================== */
 const params = new URLSearchParams(location.search);
