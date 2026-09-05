@@ -191,6 +191,7 @@ video#cam-video{ display:none; }
 <!-- ===================== EDITOR ===================== -->
 <div id="screen-editor" class="screen">
   <button class="btn-home" id="btn-home-editor" type="button">בית</button>
+  <button class="btn-home" id="btn-reset-editor" type="button" style="top:60px;">איפוס</button>
   <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;" id="editor-logo-row"></div>
   <h1 class="title">בניית משחק חדש</h1>
   <p class="sub">תנו שם לפרויקט, הוסיפו דמויות, עמדו במיקום שלהן בשטח ולחצו "קבע מיקום". בסוף תקבלו קישור אחד לשליחה.</p>
@@ -324,11 +325,14 @@ function addCharacter(){
 }
 function removeCharacter(uid){ roster = roster.filter(c=>c.uid!==uid); renderRoster(); }
 
-function badgeHTML(c){
-  if (c.modelUrl) return `<span class="status-line ok" style="margin-inline-start:6px;">מודל תלת-ממד (GLB) — סיבוב אמיתי</span>`;
-  if (c.imageUrl) return `<span class="status-line ok" style="margin-inline-start:6px;">מתארחת חיצונית — קישור קטן</span>`;
-  if (c.image) return `<span class="status-line" style="margin-inline-start:6px; color:var(--ember);">מוטמעת לבדיקה — תגדיל את הקישור</span>`;
-  return '';
+function resetEditor(){
+  if (!confirm('לאפס את כל הרשימה ולהתחיל פרויקט חדש?')) return;
+  roster = []; uidSeq = 0;
+  $('project-name').value = ''; $('radius-input').value = 20;
+  $('link-result').classList.add('hidden');
+  DEFAULT_ROSTER.forEach(d=>roster.push({ uid:++uidSeq, name:d.name, color:d.color, emoji:d.emoji, image:'', imageUrl:d.imageUrl, videoUrl:d.videoUrl, modelUrl:d.modelUrl||'', lat:null, lng:null }));
+  $('project-name').value = DEFAULT_PROJECT_NAME;
+  renderRoster();
 }
 
 function renderRoster(){
@@ -337,40 +341,18 @@ function renderRoster(){
     const el = document.createElement('div');
     el.className = 'char-card'; el.style.setProperty('--c', c.color);
     const img = charImage(c);
-    const badge = badgeHTML(c);
     el.innerHTML = `
       <div class="char-top">
-        <div class="avatar" id="av-${c.uid}">${img ? `<img src="${img}">` : c.emoji}</div>
+        <label class="avatar" id="av-${c.uid}" style="cursor:pointer;">
+          ${img ? `<img src="${img}">` : '<span style="font-size:11px; color:var(--muted);">תמונה</span>'}
+          <input type="file" accept="image/*" data-img="${c.uid}" style="display:none;">
+        </label>
         <input type="text" placeholder="שם הדמות" value="${c.name}" data-f="name" data-uid="${c.uid}" style="flex:1;">
-        <input type="color" value="${c.color}" data-f="color" data-uid="${c.uid}">
         <button class="btn ghost sm" data-del="${c.uid}" type="button">✕</button>
       </div>
-      <div style="margin-bottom:8px;" id="badge-${c.uid}">${badge}</div>
-      <div class="swatches">${PALETTE.map(p=>`<div class="swatch ${p===c.color?'on':''}" style="background:${p}" data-swatch="${p}" data-uid="${c.uid}"></div>`).join('')}</div>
-      <div class="char-fields">
-        <div>
-          <label class="f">אימוג'י (אם אין תמונה)</label>
-          <input type="text" maxlength="4" value="${c.emoji}" data-f="emoji" data-uid="${c.uid}">
-        </div>
-        <label class="file-btn">בדיקה מהירה (תמונה מוטמעת)
-          <input type="file" accept="image/*" data-img="${c.uid}">
-        </label>
-        <div class="full">
-          <label class="f">קישור לתמונה מתארחת (מומלץ — לא נכנס בתוך הקישור)</label>
-          <input type="url" placeholder="wood.webp" value="${c.imageUrl||''}" data-f="imageUrl" data-uid="${c.uid}">
-        </div>
-        <div class="full">
-          <label class="f">קישור לסרטון עם רקע ירוק (מומלץ לסרטונים — לא נכנס בתוך הקישור)</label>
-          <input type="url" placeholder="https://.../wood.mp4" value="${c.videoUrl}" data-f="videoUrl" data-uid="${c.uid}">
-        </div>
-        <div class="full">
-          <label class="f">קישור למודל תלת-ממד GLB (עדיפות ראשונה אם קיים — לא נכנס בתוך הקישור)</label>
-          <input type="url" placeholder="wood.glb" value="${c.modelUrl||''}" data-f="modelUrl" data-uid="${c.uid}">
-        </div>
-      </div>
-      <div class="row" style="margin-bottom:8px;">
-        <button class="btn secondary sm" data-loc="${c.uid}" type="button">קבע מיקום כאן</button>
-        <button class="btn ghost sm" data-preview="${c.uid}" type="button" style="border:1px solid #333;">תצוגה מקדימה</button>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn secondary sm" data-loc="${c.uid}" type="button">${c.lat ? 'עדכן מיקום' : 'קבע מיקום כאן'}</button>
+        ${c.lat ? `<button class="btn ghost sm" data-clearloc="${c.uid}" type="button" style="border:1px solid #333;">בטל מיקום</button>` : ''}
       </div>
       <div class="status-line ${c.lat?'ok':''}" id="loc-status-${c.uid}">${c.lat ? `מיקום נשמר ✓ (${c.lat.toFixed(5)}, ${c.lng.toFixed(5)})` : 'עדיין לא נקבע מיקום'}</div>
     `;
@@ -380,15 +362,7 @@ function renderRoster(){
   wrap.querySelectorAll('[data-f]').forEach(inp=>inp.addEventListener('input', e=>{
     const c = roster.find(r=>r.uid==e.target.dataset.uid);
     c[e.target.dataset.f] = e.target.value;
-    if (e.target.dataset.f==='color'){ e.target.closest('.char-card').style.setProperty('--c', c.color); }
-    if (e.target.dataset.f==='imageUrl'){ const im=charImage(c); $('av-'+c.uid).innerHTML = im ? `<img src="${im}">` : c.emoji; $('badge-'+c.uid).innerHTML = badgeHTML(c); }
-    if (e.target.dataset.f==='modelUrl'){ $('badge-'+c.uid).innerHTML = badgeHTML(c); }
-    if (e.target.dataset.f==='emoji' && !charImage(c)){ $('av-'+c.uid).textContent = c.emoji; }
     updateGenerateState();
-  }));
-  wrap.querySelectorAll('[data-swatch]').forEach(sw=>sw.addEventListener('click', e=>{
-    const c = roster.find(r=>r.uid==e.target.dataset.uid); c.color = e.target.dataset.swatch;
-    renderRoster(); updateGenerateState();
   }));
   wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', e=>removeCharacter(+e.target.dataset.del)));
   wrap.querySelectorAll('[data-loc]').forEach(b=>b.addEventListener('click', e=>{
@@ -397,34 +371,24 @@ function renderRoster(){
     navigator.geolocation.getCurrentPosition(pos=>{
       const c = roster.find(r=>r.uid===uid);
       c.lat = pos.coords.latitude; c.lng = pos.coords.longitude;
-      e.target.textContent = 'עדכן מיקום';
-      $('loc-status-'+uid).textContent = `מיקום נשמר ✓ (${c.lat.toFixed(5)}, ${c.lng.toFixed(5)})`;
-      $('loc-status-'+uid).classList.add('ok');
-      updateGenerateState();
+      renderRoster(); updateGenerateState();
     }, err=>{ alert('שגיאת מיקום: '+err.message); e.target.textContent='קבע מיקום כאן'; }, {enableHighAccuracy:true,timeout:15000});
+  }));
+  wrap.querySelectorAll('[data-clearloc]').forEach(b=>b.addEventListener('click', e=>{
+    const uid = +e.target.dataset.clearloc;
+    const c = roster.find(r=>r.uid===uid);
+    c.lat = null; c.lng = null;
+    renderRoster(); updateGenerateState();
   }));
   wrap.querySelectorAll('[data-img]').forEach(inp=>inp.addEventListener('change', async e=>{
     const uid = +e.target.dataset.img, file = e.target.files[0]; if (!file) return;
     const dataUrl = await compressImage(file, 420, 0.72);
     const c = roster.find(r=>r.uid===uid);
-    c.image = dataUrl; // תמונה מקומית לבדיקה מהירה בלבד — imageUrl (אם יש) עדיין עדיפה בקישור הסופי
+    c.image = dataUrl; c.imageUrl = ''; // תמונה חדשה שהועלתה תופסת עדיפות על פני תמונת ברירת מחדל
     renderRoster();
     updateGenerateState();
   }));
-  wrap.querySelectorAll('[data-preview]').forEach(b=>b.addEventListener('click', e=>{
-    const uid = +e.target.dataset.preview;
-    const c = roster.find(r=>r.uid===uid);
-    if (!c.name.trim()){ alert('תנו שם לדמות קודם'); return; }
-    previewCharacter(c);
-  }));
   updateGenerateState();
-}
-
-// בדיקת תצוגה מהעורך — פותח את מסך המצלמה/גילוי ישירות, בלי GPS/מיקום.
-// שימושי לבדוק chroma-key של סרטון או איך תמונה נראית, מהבית, לפני שיוצאים לשטח.
-function previewCharacter(c){
-  const testChar = { id:'preview', name:c.name, color:c.color, emoji:c.emoji, videoUrl:c.videoUrl, imageUrl:c.imageUrl, image:c.image, modelUrl:c.modelUrl };
-  triggerFound(testChar);
 }
 
 function compressImage(file, maxW, quality){
@@ -443,11 +407,6 @@ function compressImage(file, maxW, quality){
 function updateGenerateState(){
   const ready = roster.filter(c=>c.lat && c.name.trim());
   $('btn-generate-link').disabled = ready.length === 0;
-  const payload = buildPayload();
-  const len = JSON.stringify(payload).length;
-  const meter = $('len-meter');
-  meter.textContent = `אורך הקישור: כ-${(len/1024).toFixed(1)}KB${len>2000?' — ייתכן שוואטסאפ לא יהפוך אותו ללחיץ אוטומטית (יעבוד בכל זאת בהעתק-הדבק, או בהסרת חלק מהתמונות)':''}`;
-  meter.classList.toggle('warn', len>2000);
 }
 
 function buildPayload(){
@@ -472,6 +431,7 @@ function initEditor(){
   $('radius-input').oninput = updateGenerateState;
   $('add-char-btn').onclick = addCharacter;
   $('btn-generate-link').onclick = generateGameLink;
+  $('btn-reset-editor').onclick = resetEditor;
   renderRoster();
 }
 
@@ -613,14 +573,17 @@ async function triggerFound(char){
 
   const t0 = performance.now();
   let confirmed = false;
-  const smooth = { size:1, inited:false }; // מוחלק בין פריימים כדי שהגודל לא "יקפוץ" עם כל עדכון GPS
+  // מוחלק בין פריימים: size כדי שהגודל לא "יקפוץ" עם כל עדכון GPS.
+  // angle (רק לדמויות תלת-ממד) — כדי שתוכלו באמת להסתובב סביב המודל ולראות אותו מזוויות שונות.
+  const anchorHeading = userHeading;
+  const smooth = { size:1, angle:0, inited:false };
 
   function frame(now){
     if (confirmed) return;
     const t = now - t0, cw=canvas.width, ch=canvas.height;
     const vw=video.videoWidth||cw, vh=video.videoHeight||ch, sc=Math.max(cw/vw,ch/vh), dw=vw*sc, dh=vh*sc;
     camCtx.drawImage(video, (cw-dw)/2, (ch-dh)/2, dw, dh);
-    drawCharacterFrame(camCtx, char, t, cw, ch, smooth);
+    drawCharacterFrame(camCtx, char, t, cw, ch, smooth, anchorHeading);
     if (t>600 && !$('found-title').textContent){
       $('found-title').textContent = `${charImage(char)?'':char.emoji+' '}מצאת את ${char.name}!`;
       $('found-desc').textContent = 'תוסיפו כאן טקסט/תיאור לדמות בעורך אם תרצו.';
@@ -639,7 +602,7 @@ async function triggerFound(char){
   };
 }
 
-function drawCharacterFrame(ctx, char, t, cw, ch, smooth){
+function drawCharacterFrame(ctx, char, t, cw, ch, smooth, anchorHeading){
   const groundY = ch*0.86;              // קו "רצפה" שהדמות עומדת עליו
   const bob = Math.sin(t/700) * ch*0.006; // נדנוד עדין, יחסי לגובה המסך (לא פיקסלים קבועים) — כדי שיראה אותו דבר בכל רזולוציה
   const imgSrc = charImage(char);
@@ -661,9 +624,13 @@ function drawCharacterFrame(ctx, char, t, cw, ch, smooth){
     sizeFactor = smooth.size;
   }
 
-  // דמות תלת-ממדית (GLB) — עדיפות ראשונה: מנוע Three.js נפרד (ר' סקריפט המודול בתחתית הדף)
+  // דמות תלת-ממדית (GLB) בלבד — מסתובבת אמיתית לפי המצפן, בלי "נעלמת"/חצים כמו קודם.
+  // תמונות שטוחות לא מקבלות את זה בכוונה (זה מה שיצר את הרעד/ה"גלישה" בעבר).
   if (char.modelUrl && window.Hunter3D){
-    const ok = window.Hunter3D.renderCharacter({ modelUrl:char.modelUrl, diffDeg:0, sizeFactor, bobPixels:bob, cw, ch });
+    const rawAngle = ((userHeading - (anchorHeading||0) + 540) % 360) - 180;
+    if (!smooth.angleInited){ smooth.angle = rawAngle; smooth.angleInited = true; }
+    else { let d = rawAngle - smooth.angle; if (d>180) d-=360; if (d<-180) d+=360; smooth.angle += d*0.06; }
+    const ok = window.Hunter3D.renderCharacter({ modelUrl:char.modelUrl, diffDeg:smooth.angle, sizeFactor, bobPixels:bob, cw, ch });
     if (ok){ ctx.drawImage($('three-canvas'), 0, 0, cw, ch); return; }
     if (window.Hunter3D.hasError(char.modelUrl)){ /* נפילה-לאחור לתמונה/וידאו/אימוג'י למטה */ }
     else return; // עדיין טוען — לא מציירים כלום הפריים הזה, לא נופלים לתמונה כדי לא "להבהב"
