@@ -162,6 +162,17 @@ video#cam-video{ display:none; }
   color:var(--muted); font-size:18px; display:flex; align-items:center; justify-content:center; cursor:pointer;
 }
 .circle-btn:active{ transform:scale(.94); }
+#mode-circles{ display:flex; gap:28px; margin-top:8px; }
+.mode-circle{
+  width:120px; height:120px; border-radius:50%; border:none; cursor:pointer;
+  font-family:'Rubik',sans-serif; font-weight:800; font-size:17px; color:#fff;
+  display:flex; align-items:center; justify-content:center;
+}
+.mode-circle:active{ transform:scale(.96); }
+.mode-circle.play{ background:linear-gradient(160deg,var(--amber),var(--ember)); box-shadow:0 6px 22px -6px rgba(209,106,144,.55); }
+.mode-circle.edit{ background:var(--bg2); border:1px solid var(--panel-b); color:var(--text); }
+.btn-home{ position:fixed; top:16px; right:16px; background:var(--bg1); border:1px solid var(--panel-b); color:var(--muted);
+  border-radius:999px; padding:9px 16px; font-size:13px; cursor:pointer; z-index:5; }
 </style>
 </head>
 <body>
@@ -171,15 +182,15 @@ video#cam-video{ display:none; }
   <div class="hero" id="intro-logo"></div>
   <div class="brand-word">HUNTER</div>
   <div id="intro-project">AR ציד אוצרות — צאו לשטח ומצאו את מי שמחכה לכם</div>
-  <button class="btn" id="btn-start-player">התחל לחפש</button>
-  <div id="corner-circles">
-    <button class="circle-btn" id="editor-toggle" type="button" title="מצב עורך">🔒</button>
-    <button class="circle-btn" id="copy-link-circle" type="button" title="העתק קישור למשחק הנוכחי">🔗</button>
+  <div id="mode-circles">
+    <button class="mode-circle play" id="circle-play" type="button">שחק</button>
+    <button class="mode-circle edit" id="circle-edit" type="button">ערוך</button>
   </div>
 </div>
 
 <!-- ===================== EDITOR ===================== -->
 <div id="screen-editor" class="screen">
+  <button class="btn-home" id="btn-home-editor" type="button">בית</button>
   <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;" id="editor-logo-row"></div>
   <h1 class="title">בניית משחק חדש</h1>
   <p class="sub">תנו שם לפרויקט, הוסיפו דמויות, עמדו במיקום שלהן בשטח ולחצו "קבע מיקום". בסוף תקבלו קישור אחד לשליחה.</p>
@@ -213,6 +224,7 @@ video#cam-video{ display:none; }
 
 <!-- ===================== PERMISSIONS ===================== -->
 <div id="screen-permissions" class="screen">
+  <button class="btn-home" id="btn-home-perms" type="button">בית</button>
   <h1 class="title">לפני שיוצאים לדרך</h1>
   <p class="sub">האפליקציה צריכה גישה למיקום ולמצלמה כדי שתוכלו למצוא את הדמויות.</p>
   <div class="card">
@@ -225,6 +237,11 @@ video#cam-video{ display:none; }
 
 <!-- ===================== RADAR ===================== -->
 <div id="screen-radar" class="screen">
+  <button class="btn-home" id="btn-home-radar" type="button">בית</button>
+  <div id="radar-empty" class="hidden" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+    <h1 class="title">אין דמויות לחיפוש</h1>
+    <p class="sub">לא נטען משחק עם דמויות. בקשו קישור מהמארגן, או היכנסו לעורך כדי ליצור משחק.</p>
+  </div>
   <div class="dots" id="progress-dots"></div>
   <div id="radar-wrap">
     <div class="radar-ring" id="radar-ring">
@@ -492,6 +509,7 @@ $('btn-grant-perms').addEventListener('click', async ()=>{
 
 /* ===================== PLAYER: RADAR ===================== */
 function startPlayerLoop(){
+  $('radar-empty').classList.add('hidden'); $('radar-wrap').classList.remove('hidden'); $('progress-dots').classList.remove('hidden');
   showScreen('screen-radar');
   buildProgressDots();
   navigator.geolocation.watchPosition(pos=>{ userPos={lat:pos.coords.latitude,lng:pos.coords.longitude}; updateRadar(); updateLiveMap(); }, e=>console.warn(e), {enableHighAccuracy:true,maximumAge:2000});
@@ -754,25 +772,14 @@ if (GAME_DATA){ $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.pro
 
 showScreen(params.get('editor')==='1' ? (initEditor(), 'screen-editor') : 'screen-intro');
 
-// הגנה בסיסית בלבד — סיסמה בצד-לקוח לא מונעת מישהו שקורא את קוד המקור,
-// זה סתם חוסם כניסה מקרית של משתתף שלחץ על העיגול הלא נכון.
-const EDITOR_PASSWORD = "kimekan2026";
-$('editor-toggle').addEventListener('click', ()=>{
-  const pw = prompt('סיסמת עורך:');
-  if (pw === null) return;
-  if (pw !== EDITOR_PASSWORD){ alert('סיסמה שגויה'); return; }
-  initEditor(); showScreen('screen-editor');
+$('circle-edit').addEventListener('click', ()=>{ initEditor(); showScreen('screen-editor'); });
+$('circle-play').addEventListener('click', ()=>{
+  if (GAME_DATA && GAME_DATA.chars && GAME_DATA.chars.length){ showScreen('screen-permissions'); }
+  else { $('radar-empty').classList.remove('hidden'); $('radar-wrap').classList.add('hidden'); $('progress-dots').classList.add('hidden'); showScreen('screen-radar'); }
 });
-$('copy-link-circle').addEventListener('click', ()=>{
-  navigator.clipboard.writeText(location.href).then(()=>{
-    const b = $('copy-link-circle'); const old = b.textContent;
-    b.textContent = '✓'; setTimeout(()=>b.textContent = old, 1200);
-  });
-});
-$('btn-start-player').addEventListener('click', ()=>{
-  if (!GAME_DATA){ alert('לא נמצא קישור משחק פעיל. בקש/י קישור מהמארגן.'); return; }
-  showScreen('screen-permissions');
-});
+$('btn-home-editor').addEventListener('click', ()=> showScreen('screen-intro'));
+$('btn-home-perms').addEventListener('click', ()=> showScreen('screen-intro'));
+$('btn-home-radar').addEventListener('click', ()=> showScreen('screen-intro'));
 
 </script>
 
