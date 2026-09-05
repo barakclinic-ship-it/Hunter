@@ -581,19 +581,16 @@ async function triggerFound(char){
   function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
   resize(); window.addEventListener('resize', resize);
 
-  // "עיגון" הדמות לכיוון מצפן קבוע — כמו AR אמיתי: מסתובבים 360 ורואים אותה
-  // רק כשפונים לאותו כיוון, בדיוק כמו שהיא "יושבת" בפינה מסוימת בשטח.
-  const anchorHeading = userHeading;
   const t0 = performance.now();
   let confirmed = false;
-  const smooth = { x:0, size:1, inited:false }; // מצב מוחלק בין פריימים — כדי שתזוזה/גודל לא "יקפצו" עם כל עדכון GPS/מצפן
+  const smooth = { size:1, inited:false }; // מוחלק בין פריימים כדי שהגודל לא "יקפוץ" עם כל עדכון GPS
 
   function frame(now){
     if (confirmed) return;
     const t = now - t0, cw=canvas.width, ch=canvas.height;
     const vw=video.videoWidth||cw, vh=video.videoHeight||ch, sc=Math.max(cw/vw,ch/vh), dw=vw*sc, dh=vh*sc;
     camCtx.drawImage(video, (cw-dw)/2, (ch-dh)/2, dw, dh);
-    drawCharacterFrame(camCtx, char, t, cw, ch, anchorHeading, smooth);
+    drawCharacterFrame(camCtx, char, t, cw, ch, smooth);
     if (t>600 && !$('found-title').textContent){
       $('found-title').textContent = `${charImage(char)?'':char.emoji+' '}מצאת את ${char.name}!`;
       $('found-desc').textContent = 'תוסיפו כאן טקסט/תיאור לדמות בעורך אם תרצו.';
@@ -612,23 +609,10 @@ async function triggerFound(char){
   };
 }
 
-function drawCharacterFrame(ctx, char, t, cw, ch, anchorHeading, smooth){
+function drawCharacterFrame(ctx, char, t, cw, ch, smooth){
   const groundY = ch*0.86;              // קו "רצפה" שהדמות עומדת עליו
   const bob = Math.sin(t/700)*4;        // נדנוד עדין בלבד — בלי סיבוב, בלי מתיחה
   const imgSrc = charImage(char);
-
-  // מיקום אופקי לפי הפרש המצפן מהכיוון שבו "עוגנה" הדמות — מדמה שהיא קבועה במרחב
-  const FOV = 50; // מעלות רוחב-שדה שממופות לרוחב המסך
-  const anchor = (anchorHeading==null) ? 0 : anchorHeading;
-  const diff = ((userHeading - anchor + 540) % 360) - 180; // מנורמל ל־180-..180
-  // היסטרזיס: סף שונה לכניסה/יציאה כדי שהיא לא תהבהב פנימה-החוצה בדיוק על הגבול
-  const wasVisible = smooth ? smooth.visible !== false : true;
-  const threshold = FOV/2 + (wasVisible ? 26 : 18);
-  const visible = Math.abs(diff) <= threshold;
-  if (smooth) smooth.visible = visible;
-  const targetXOffset = (diff/(FOV/2)) * (cw*0.6);
-
-  if (!visible){ drawOffscreenHint(ctx, diff, cw, ch, char.color); if (smooth) smooth.inited=false; return; }
 
   // ככל שמתקרבים פיזית לנקודה — הדמות גדלה; ככל שמתרחקים (עד רדיוס הגילוי) — היא מתכווצת
   let targetSizeFactor = 1;
@@ -638,24 +622,18 @@ function drawCharacterFrame(ctx, char, t, cw, ch, anchorHeading, smooth){
     targetSizeFactor = 1 - Math.min(1, Math.max(0, (d-near)/(far-near))) * 0.55; // 1 (קרוב) .. 0.45 (בקצה הרדיוס)
   }
 
-  // הרחקה/גודל אמיתיים מתעדכנים בקפיצות (GPS/מצפן מגיעים כל שנייה-שתיים, לא כל פריים) —
-  // בלי החלקה זה היה נראה כאילו הפסל "קופץ" לגודל אחר. במקום זה זזים אליהם בהדרגה כל פריים,
-  // כך שמרגיש כמו פסל אמיתי שמתקרב/מתרחק ברציפות כשמתקדמים לעברו.
-  let xOffset = targetXOffset, sizeFactor = targetSizeFactor, angleDeg = diff;
+  // המרחק האמיתי מתעדכן בקפיצות (GPS מגיע כל שנייה-שתיים, לא כל פריים) —
+  // בלי החלקה זה היה נראה כאילו הפסל "קופץ" לגודל אחר. זזים אליו בהדרגה כל פריים.
+  let sizeFactor = targetSizeFactor;
   if (smooth){
-    if (!smooth.inited){ smooth.x = targetXOffset; smooth.size = targetSizeFactor; smooth.angle = diff; smooth.inited = true; }
-    else {
-      smooth.x += (targetXOffset - smooth.x) * 0.08;
-      smooth.size += (targetSizeFactor - smooth.size) * 0.04;
-      smooth.angle += (diff - smooth.angle) * 0.08;
-    }
-    xOffset = smooth.x; sizeFactor = smooth.size; angleDeg = smooth.angle;
+    if (!smooth.inited){ smooth.size = targetSizeFactor; smooth.inited = true; }
+    else { smooth.size += (targetSizeFactor - smooth.size) * 0.04; }
+    sizeFactor = smooth.size;
   }
 
   // דמות תלת-ממדית (GLB) — עדיפות ראשונה: מנוע Three.js נפרד (ר' סקריפט המודול בתחתית הדף)
-  // מסתובב אמיתית סביב הדמות לפי הפרש הכיוון, ומתקרב/מתרחק לפי sizeFactor.
   if (char.modelUrl && window.Hunter3D){
-    const ok = window.Hunter3D.renderCharacter({ modelUrl:char.modelUrl, diffDeg:angleDeg, sizeFactor, bobPixels:bob, cw, ch });
+    const ok = window.Hunter3D.renderCharacter({ modelUrl:char.modelUrl, diffDeg:0, sizeFactor, bobPixels:bob, cw, ch });
     if (ok){ ctx.drawImage($('three-canvas'), 0, 0, cw, ch); return; }
     if (window.Hunter3D.hasError(char.modelUrl)){ /* נפילה-לאחור לתמונה/וידאו/אימוג'י למטה */ }
     else return; // עדיין טוען — לא מציירים כלום הפריים הזה, לא נופלים לתמונה כדי לא "להבהב"
@@ -665,11 +643,11 @@ function drawCharacterFrame(ctx, char, t, cw, ch, anchorHeading, smooth){
     const targetH = ch*0.8*sizeFactor;
     const scale = targetH/naturalH;
     const w = naturalW*scale, h = targetH;
-    const x = cw/2 - w/2 + xOffset, y = groundY - h + bob;
+    const x = cw/2 - w/2, y = groundY - h + bob;
     ctx.save();
     ctx.globalAlpha = 0.32;
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(cw/2+xOffset, groundY+4, w*0.3, 9, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cw/2, groundY+4, w*0.3, 9, 0, 0, Math.PI*2); ctx.fill();
     ctx.restore();
     ctx.drawImage(source, x, y, w, h);
   }
@@ -698,23 +676,11 @@ function drawCharacterFrame(ctx, char, t, cw, ch, anchorHeading, smooth){
 
   // אין תמונה בכלל — פולבק: כדור זוהר עם אימוג'י (ללא דמות מצוירת)
   const size = Math.min(cw,ch)*0.4*sizeFactor;
-  ctx.save(); ctx.translate(cw/2+xOffset, groundY - size*0.5 + bob);
+  ctx.save(); ctx.translate(cw/2, groundY - size*0.5 + bob);
   ctx.fillStyle = char.color; ctx.globalAlpha = 0.9;
   ctx.beginPath(); ctx.arc(0,0,size*0.28,0,Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
   ctx.font = `${Math.round(size*0.35)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(char.emoji, 0, 4);
-  ctx.restore();
-}
-
-// כשהדמות "מאחורי הגב" — חץ קטן בקצה המסך מראה לאן לפנות כדי למצוא אותה שוב
-function drawOffscreenHint(ctx, diff, cw, ch, color){
-  const y = ch*0.5, side = diff > 0 ? cw-34 : 34, dir = diff > 0 ? 1 : -1;
-  ctx.save();
-  ctx.translate(side, y);
-  ctx.fillStyle = color; ctx.globalAlpha = 0.85;
-  ctx.beginPath();
-  ctx.moveTo(dir*14, 0); ctx.lineTo(dir*-10, -16); ctx.lineTo(dir*-10, 16);
-  ctx.closePath(); ctx.fill();
   ctx.restore();
 }
 
