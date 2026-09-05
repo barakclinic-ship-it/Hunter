@@ -108,9 +108,9 @@ code.linkbox{
 .dots{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; justify-content:center; }
 .dot{ width:13px; height:13px; border-radius:50%; border:2px solid var(--panel-b); background:transparent; }
 .dot.found{ border-color:transparent; }
-#radar-wrap{ flex:1; display:flex; flex-direction:column; min-height:0; }
-#radar-compass-half{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-#radar-map-half{ flex:1; min-height:0; display:flex; padding-bottom:6px; }
+#radar-wrap{ flex:1; min-height:0; display:grid; grid-template-rows:1fr 1fr; gap:10px; }
+#radar-compass-half{ min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; }
+#radar-map-half{ min-height:0; }
 .radar-ring{
   width:min(50vw,220px); height:min(50vw,220px); border-radius:50%; position:relative;
   background:
