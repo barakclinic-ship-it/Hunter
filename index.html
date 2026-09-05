@@ -108,37 +108,63 @@ code.linkbox{
 .dots{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; justify-content:center; }
 .dot{ width:13px; height:13px; border-radius:50%; border:2px solid var(--panel-b); background:transparent; }
 .dot.found{ border-color:transparent; }
-#radar-wrap{ flex:1; min-height:0; display:grid; grid-template-rows:1fr 1fr; gap:10px; }
-#radar-compass-half{ min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; }
-#radar-map-half{ min-height:0; }
+#radar-wrap{ flex:1; min-height:0; position:relative; overflow:hidden; }
+#radar-compass-half{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  transition:justify-content .4s ease, padding-top .4s ease;
+}
+#radar-wrap.map-expanded #radar-compass-half{ justify-content:flex-start; padding-top:6px; }
+#radar-wrap.map-expanded .radar-ring{ width:min(30vw,128px); height:min(30vw,128px); margin-bottom:10px; }
+#radar-wrap.map-expanded #temp-text{ font-size:19px; margin:0 0 8px; }
+#radar-wrap.map-expanded #dist-text, #radar-wrap.map-expanded #radar-target-name{ display:none; }
+
+#map-sheet{
+  position:absolute; left:0; right:0; bottom:0; height:70%;
+  display:flex; flex-direction:column; overflow:hidden;
+  background:var(--bg1); border:1px solid var(--panel-b); border-bottom:none;
+  border-top-left-radius:22px; border-top-right-radius:22px;
+  box-shadow:0 -14px 34px -14px rgba(0,0,0,.6);
+  transform:translateY(calc(100% - 44px));
+  transition:transform .4s cubic-bezier(.22,.85,.32,1);
+}
+#map-sheet.expanded{ transform:translateY(0); }
+#map-sheet-handle{
+  flex-shrink:0; height:44px; width:100%; background:none; border:none; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+}
+#map-sheet-handle .bar{ width:40px; height:4px; border-radius:3px; background:var(--panel-b); }
+#map-sheet-handle .label{ font-size:12px; color:var(--muted); }
+#live-map{ flex:1; width:100%; }
+
 .radar-ring{
   width:min(50vw,220px); height:min(50vw,220px); border-radius:50%; position:relative;
   background:
     repeating-radial-gradient(circle, transparent 0 13%, #ffffff08 13% 14%),
     radial-gradient(circle at 50% 50%, var(--bg2), var(--bg0));
   border:1px solid var(--panel-b); display:flex; align-items:center; justify-content:center; margin-bottom:22px; overflow:hidden;
+  transition:width .4s cubic-bezier(.22,.85,.32,1), height .4s cubic-bezier(.22,.85,.32,1), margin-bottom .4s ease;
 }
 .sweep{
   position:absolute; inset:0; border-radius:50%;
-  background:conic-gradient(from 0deg, var(--c,var(--amber))40 0deg, transparent 55deg, transparent 360deg);
+  background:conic-gradient(from 0deg, var(--amber) 0deg, transparent 55deg, transparent 360deg);
   animation:spin 3.2s linear infinite; opacity:.35;
 }
 @keyframes spin{ to{ transform:rotate(360deg);} }
 .arrow{
   position:absolute; width:0; height:0; top:50%; left:50%;
   border-left:12px solid transparent; border-right:12px solid transparent;
-  border-bottom:42px solid var(--c,var(--amber)); transform-origin:50% 100%;
-  margin-top:-42px; margin-left:-12px; transition:transform .25s linear, border-bottom-color .3s ease; z-index:2;
+  border-bottom:42px solid var(--amber); transform-origin:50% 100%;
+  margin-top:-42px; margin-left:-12px; transition:transform .25s linear; z-index:2;
 }
 .center-emoji{ font-size:28px; z-index:2; }
 #dist-text{ font-size:14px; color:var(--muted); }
-#temp-text{ font-size:26px; font-weight:700; font-family:'Rubik',sans-serif; margin:2px 0 18px; }
+#temp-text{ font-size:26px; font-weight:700; font-family:'Rubik',sans-serif; margin:2px 0 18px; transition:font-size .4s ease, margin .4s ease; }
 #radar-target-name{ text-align:center; }
-#live-map{ width:100%; height:100%; border-radius:var(--rmd); overflow:hidden; border:1px solid var(--panel-b); }
+#live-map{ width:100%; height:100%; }
 .me-dot{ width:16px; height:16px; border-radius:50%; background:var(--amber); border:3px solid #fff; box-shadow:0 0 0 4px #d16a9044; }
 
 /* ---------- camera (stays dark — legibility over a live camera feed) ---------- */
-#camera-wrap{ position:fixed; inset:0; background:#000; display:none; z-index:50; }
+#camera-wrap{ position:fixed; inset:0; background:#000; display:none; z-index:900; }
 #camera-wrap.active{ display:flex; }
 #cam-canvas{ width:100%; height:100%; object-fit:cover; }
 #three-canvas{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
@@ -256,7 +282,11 @@ video#cam-video{ display:none; }
       <div id="temp-text">—</div>
       <p class="sub" id="radar-target-name"></p>
     </div>
-    <div id="radar-map-half">
+    <div id="map-sheet">
+      <button id="map-sheet-handle" type="button">
+        <span class="bar"></span>
+        <span class="label">מפה חיה</span>
+      </button>
       <div id="live-map"></div>
     </div>
   </div>
@@ -522,12 +552,19 @@ function startPlayerLoop(){
   $('radar-empty').classList.add('hidden'); $('radar-wrap').classList.remove('hidden'); $('progress-dots').classList.remove('hidden');
   showScreen('screen-radar');
   buildProgressDots();
-  navigator.geolocation.watchPosition(pos=>{ userPos={lat:pos.coords.latitude,lng:pos.coords.longitude}; updateRadar(); updateLiveMap(); }, e=>console.warn(e), {enableHighAccuracy:true,maximumAge:2000});
+  navigator.geolocation.watchPosition(pos=>{ userPos={lat:pos.coords.latitude,lng:pos.coords.longitude}; updateRadar(); updateLiveMap(); }, e=>console.warn(e), {enableHighAccuracy:true,maximumAge:0,timeout:10000});
   window.addEventListener('deviceorientationabsolute', onOrientation, true);
   window.addEventListener('deviceorientation', onOrientation, true);
   huntCompleted = false;
   radarIntervalId = setInterval(updateRadar, 800);
 }
+$('map-sheet-handle').addEventListener('click', ()=>{
+  $('map-sheet').classList.toggle('expanded');
+  $('radar-wrap').classList.toggle('map-expanded');
+  const label = $('map-sheet-handle').querySelector('.label');
+  label.textContent = $('map-sheet').classList.contains('expanded') ? 'סגרו מפה' : 'מפה חיה';
+  setTimeout(()=>liveMap && liveMap.invalidateSize(), 420);
+});
 
 /* מפה חיה — מראה רק את המיקום שלי, לצורך אוריינטציה כללית בשטח, תמיד גלויה
    (חצי תחתון של המסך). בכוונה לא מציגה את המיקום המדויק של הדמות —
@@ -575,8 +612,6 @@ function updateRadar(){
   const { char, dist } = t;
   const brg = userPos ? bearing(userPos.lat,userPos.lng,char.lat,char.lng) : 0;
   $('radar-arrow').style.transform = `rotate(${brg-userHeading}deg)`;
-  $('radar-arrow').style.borderBottomColor = char.color;
-  $('radar-ring').style.setProperty('--c', char.color);
   $('radar-emoji').textContent = charImage(char) ? '' : char.emoji;
   $('radar-target-name').textContent = `מחפשים: ${char.name}`;
   $('dist-text').textContent = `כ-${Math.round(dist)} מטר`;
@@ -597,6 +632,7 @@ let mediaCache = {}; // id -> {img?, video?}
 async function triggerFound(char){
   cameraLock = true;
   $('camera-wrap').classList.add('active');
+  $('map-sheet').style.visibility = 'hidden'; // המצלמה מכסה את המסך, אבל עוצרים גם את המפה שלא תמשיך לרנדר/להציק ברקע
   $('found-title').textContent=''; $('found-desc').textContent='';
   $('btn-confirm-found').classList.add('hidden');
   const video=$('cam-video'), canvas=$('cam-canvas');
@@ -728,6 +764,7 @@ function finishFound(char, snapshot){
   if (camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   if (camAnimFrame) cancelAnimationFrame(camAnimFrame);
   $('camera-wrap').classList.remove('active');
+  $('map-sheet').style.visibility = ''; // מחזירים את המפה עכשיו שסגרנו את המצלמה
   foundIds.add(char.id);
   if (snapshot) foundSnapshots[char.id] = snapshot;
   const dot = $('dot-'+char.id);
@@ -870,9 +907,6 @@ let GAME_DATA = null;
 if (hashMatch){ try{ GAME_DATA = JSON.parse(b64dec(decodeURIComponent(hashMatch[1]))); }catch(e){ console.error('bad link', e); } }
 if (GAME_DATA){
   $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`;
-  // מי שפתח קישור משחק אמיתי (קבוצה שקיבלה קישור לצוד) הוא שחקן, לא המארגן —
-  // מסתירים לו את עיגול העריכה כדי שלא ייכנס בטעות לעורך ויבלבל את המשחק.
-  $('circle-edit').style.display = 'none';
 }
 
 showScreen(params.get('editor')==='1' ? (initEditor(), 'screen-editor') : 'screen-intro');
