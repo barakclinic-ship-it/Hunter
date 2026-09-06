@@ -111,12 +111,8 @@ code.linkbox{
 #radar-wrap{ flex:1; min-height:0; position:relative; overflow:hidden; }
 #radar-compass-half{
   position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  transition:justify-content .4s ease, padding-top .4s ease;
+  padding:20px 90px; text-align:center; gap:10px;
 }
-#radar-wrap.map-expanded #radar-compass-half{ justify-content:flex-start; padding-top:6px; }
-#radar-wrap.map-expanded .radar-ring{ width:min(30vw,128px); height:min(30vw,128px); margin-bottom:10px; }
-#radar-wrap.map-expanded #temp-text{ font-size:19px; margin:0 0 8px; }
-#radar-wrap.map-expanded #dist-text, #radar-wrap.map-expanded #radar-target-name{ display:none; }
 
 #map-sheet{
   position:absolute; left:0; right:0; bottom:0; height:70%;
@@ -136,13 +132,13 @@ code.linkbox{
 #map-sheet-handle .label{ font-size:12px; color:var(--muted); }
 #live-map{ flex:1; width:100%; }
 
+/* מצפן קטן, בצד — רק כיוון, בלי מספרים/מרחק. הרמז הכתוב הוא הכלי העיקרי לניווט. */
 .radar-ring{
-  width:min(50vw,220px); height:min(50vw,220px); border-radius:50%; position:relative;
+  position:absolute; top:16px; left:16px; width:72px; height:72px; border-radius:50%;
   background:
     repeating-radial-gradient(circle, transparent 0 13%, #ffffff08 13% 14%),
     radial-gradient(circle at 50% 50%, var(--bg2), var(--bg0));
-  border:1px solid var(--panel-b); display:flex; align-items:center; justify-content:center; margin-bottom:22px; overflow:hidden;
-  transition:width .4s cubic-bezier(.22,.85,.32,1), height .4s cubic-bezier(.22,.85,.32,1), margin-bottom .4s ease;
+  border:1px solid var(--panel-b); overflow:hidden; z-index:3;
 }
 .sweep{
   position:absolute; inset:0; border-radius:50%;
@@ -152,14 +148,12 @@ code.linkbox{
 @keyframes spin{ to{ transform:rotate(360deg);} }
 .arrow{
   position:absolute; width:0; height:0; top:50%; left:50%;
-  border-left:12px solid transparent; border-right:12px solid transparent;
-  border-bottom:42px solid var(--amber); transform-origin:50% 100%;
-  margin-top:-42px; margin-left:-12px; transition:transform .25s linear; z-index:2;
+  border-left:6px solid transparent; border-right:6px solid transparent;
+  border-bottom:20px solid var(--amber); transform-origin:50% 100%;
+  margin-top:-20px; margin-left:-6px; transition:transform .25s linear; z-index:2;
 }
-.center-emoji{ font-size:28px; z-index:2; }
-#dist-text{ font-size:14px; color:var(--muted); }
-#temp-text{ font-size:26px; font-weight:700; font-family:'Rubik',sans-serif; margin:2px 0 18px; transition:font-size .4s ease, margin .4s ease; }
 #radar-target-name{ text-align:center; }
+#hint-text{ font-size:16px; line-height:1.6; color:var(--text); max-width:280px; }
 #live-map{ width:100%; height:100%; }
 .me-dot{ width:16px; height:16px; border-radius:50%; background:var(--amber); border:3px solid #fff; box-shadow:0 0 0 4px #d16a9044; }
 
@@ -190,6 +184,7 @@ video#cam-video{ display:none; }
 }
 .circle-btn:active{ transform:scale(.94); }
 #mode-circles{ display:flex; gap:28px; margin-top:8px; }
+.circles-row{ display:flex; gap:28px; margin-top:8px; }
 .mode-circle{
   width:120px; height:120px; border-radius:50%; border:none; cursor:pointer;
   font-family:'Rubik',sans-serif; font-weight:800; font-size:17px; color:#fff;
@@ -198,6 +193,7 @@ video#cam-video{ display:none; }
 .mode-circle:active{ transform:scale(.96); }
 .mode-circle.play{ background:linear-gradient(160deg,var(--amber),var(--ember)); box-shadow:0 6px 22px -6px rgba(209,106,144,.55); }
 .mode-circle.edit{ background:var(--bg2); border:1px solid var(--panel-b); color:var(--text); }
+.mode-circle.granted{ background:linear-gradient(160deg,var(--amber),var(--ember)); border:none; box-shadow:0 6px 22px -6px rgba(209,106,144,.55); }
 .btn-home{ position:fixed; top:16px; right:16px; background:var(--bg1); border:1px solid var(--panel-b); color:var(--muted);
   border-radius:999px; padding:9px 16px; font-size:13px; cursor:pointer; z-index:5; }
 </style>
@@ -251,31 +247,6 @@ video#cam-video{ display:none; }
 </div>
 
 <!-- ===================== PERMISSIONS ===================== -->
-<div id="screen-permissions" class="screen" style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
-  <button class="btn-home" id="btn-home-perms" type="button">בית</button>
-  <div class="hero" id="perms-logo" style="width:74px; height:74px; margin-bottom:6px;"></div>
-  <h1 class="title" style="color:var(--amber);">לפני שיוצאים לדרך</h1>
-  <p class="sub">האפליקציה צריכה גישה למיקום ולמצלמה כדי שתוכלו למצוא את הדמויות.</p>
-  <div class="card" style="width:100%; max-width:340px; border-color:#3a2a32; background:linear-gradient(160deg,var(--bg1),var(--bg2));">
-    <div class="row" style="margin-bottom:14px;">
-      <span style="display:flex; align-items:center; gap:10px;">
-        <span style="width:38px; height:38px; border-radius:50%; background:linear-gradient(160deg,var(--amber),var(--ember)); display:flex; align-items:center; justify-content:center; font-size:18px;">📍</span>
-        מיקום
-      </span>
-      <span class="status-line" id="badge-geo">נדרש</span>
-    </div>
-    <div class="row">
-      <span style="display:flex; align-items:center; gap:10px;">
-        <span style="width:38px; height:38px; border-radius:50%; background:linear-gradient(160deg,var(--amber),var(--ember)); display:flex; align-items:center; justify-content:center; font-size:18px;">🧭</span>
-        מצפן
-      </span>
-      <span class="status-line" id="badge-compass">נדרש</span>
-    </div>
-  </div>
-  <button class="btn" id="btn-grant-perms" style="max-width:340px; margin-top:6px;">אשר גישה והתחל</button>
-  <p class="sub" id="perm-error" style="color:var(--ember);"></p>
-</div>
-
 <!-- ===================== RADAR ===================== -->
 <div id="screen-radar" class="screen">
   <button class="btn-home" id="btn-home-radar" type="button">בית</button>
@@ -283,17 +254,25 @@ video#cam-video{ display:none; }
     <h1 class="title">אין דמויות לחיפוש</h1>
     <p class="sub">לא נטען משחק עם דמויות. בקשו קישור מהמארגן, או היכנסו לעורך כדי ליצור משחק.</p>
   </div>
-  <div class="dots" id="progress-dots"></div>
-  <div id="radar-wrap">
+  <div id="perm-gate" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px;">
+    <div class="hero" id="perms-logo" style="width:70px; height:70px; margin-bottom:2px;"></div>
+    <h1 class="title" style="color:var(--amber);">לפני שיוצאים לדרך</h1>
+    <p class="sub">אשרו את שני אלה כדי להתחיל לחפש</p>
+    <div id="perm-circles" class="circles-row">
+      <button class="mode-circle edit" id="circle-geo" type="button">מיקום</button>
+      <button class="mode-circle edit" id="circle-compass" type="button">מצפן</button>
+    </div>
+    <p class="sub" id="perm-error" style="color:var(--ember);"></p>
+  </div>
+  <div class="dots hidden" id="progress-dots"></div>
+  <div id="radar-wrap" class="hidden">
     <div id="radar-compass-half">
       <div class="radar-ring" id="radar-ring">
         <div class="sweep" id="radar-sweep"></div>
         <div class="arrow" id="radar-arrow"></div>
-        <div class="center-emoji" id="radar-emoji">🧭</div>
       </div>
-      <div id="dist-text">מחפשים מיקום...</div>
-      <div id="temp-text">—</div>
-      <p class="sub" id="radar-target-name"></p>
+      <p class="sub" id="radar-target-name" style="font-weight:700; color:var(--text); font-size:16px;"></p>
+      <div id="hint-text"></div>
     </div>
     <div id="map-sheet">
       <button id="map-sheet-handle" type="button">
@@ -327,7 +306,6 @@ video#cam-video{ display:none; }
     <p class="sub" style="margin-top:10px;">בשיתוף בחרו את איש הקשר / קבוצת הריטריט</p>
     <div class="row" style="margin-top:6px;">
       <button class="btn secondary sm" id="btn-final-again" type="button">חפשו שוב</button>
-      <button class="btn ghost sm" id="btn-final-home" type="button" style="border:1px solid #333;">חזרה לדף הבית</button>
     </div>
   </div>
 </div>
@@ -372,19 +350,41 @@ function charImage(char){ return char.imageUrl || char.image || ''; }
 
 function addCharacter(){
   const n = roster.length;
-  roster.push({ uid:++uidSeq, name:'', color:PALETTE[n%PALETTE.length], emoji:EMOJIS[n%EMOJIS.length], image:'', imageUrl:'', videoUrl:'', modelUrl:'', lat:null, lng:null });
+  roster.push({ uid:++uidSeq, name:'', color:PALETTE[n%PALETTE.length], emoji:EMOJIS[n%EMOJIS.length], image:'', imageUrl:'', videoUrl:'', modelUrl:'', hint:'', lat:null, lng:null });
   renderRoster();
 }
 function removeCharacter(uid){ roster = roster.filter(c=>c.uid!==uid); renderRoster(); }
+
+const EDITOR_STORAGE_KEY = 'hunterEditorDraft';
+function saveEditorState(){
+  try{
+    localStorage.setItem(EDITOR_STORAGE_KEY, JSON.stringify({
+      project: $('project-name').value, radius: $('radius-input').value, roster, uidSeq
+    }));
+  }catch(e){ /* אחסון מלא/חסום — לא קריטי, ממשיכים בלי שמירה */ }
+}
+function loadEditorState(){
+  try{
+    const raw = localStorage.getItem(EDITOR_STORAGE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved.roster || !saved.roster.length) return false;
+    roster = saved.roster; uidSeq = saved.uidSeq || uidSeq;
+    $('project-name').value = saved.project || DEFAULT_PROJECT_NAME;
+    $('radius-input').value = saved.radius || RADIUS_DEFAULT;
+    return true;
+  }catch(e){ return false; }
+}
 
 function resetEditor(){
   if (!confirm('לאפס את כל הרשימה ולהתחיל פרויקט חדש?')) return;
   roster = []; uidSeq = 0;
   $('project-name').value = ''; $('radius-input').value = 20;
   $('link-result').classList.add('hidden');
-  DEFAULT_ROSTER.forEach(d=>roster.push({ uid:++uidSeq, name:d.name, color:d.color, emoji:d.emoji, image:'', imageUrl:d.imageUrl, videoUrl:d.videoUrl, modelUrl:d.modelUrl||'', lat:null, lng:null }));
+  DEFAULT_ROSTER.forEach(d=>roster.push({ uid:++uidSeq, name:d.name, color:d.color, emoji:d.emoji, image:'', imageUrl:d.imageUrl, videoUrl:d.videoUrl, modelUrl:d.modelUrl||'', hint:d.hint||'', lat:null, lng:null }));
   $('project-name').value = DEFAULT_PROJECT_NAME;
   renderRoster();
+  localStorage.removeItem(EDITOR_STORAGE_KEY);
 
   // איפוס משפיע גם על "המשחק הפעיל" שנטען מהקישור (#g=...) — אחרת דף הבית
   // ימשיך להציג את הפרויקט/מספר הדמויות הישן, למרות שהעורך כבר התאפס.
@@ -407,6 +407,9 @@ function renderRoster(){
         </label>
         <input type="text" placeholder="שם הדמות" value="${c.name}" data-f="name" data-uid="${c.uid}" style="flex:1;">
         <button class="btn ghost sm" data-del="${c.uid}" type="button">✕</button>
+      </div>
+      <div style="margin-top:8px;">
+        <input type="text" placeholder="רמז לשחקנים (למשל: ליד העץ הגדול ליד השער)" value="${c.hint||''}" data-f="hint" data-uid="${c.uid}" style="width:100%;">
       </div>
       <div class="row" style="margin-top:8px;">
         <button class="btn secondary sm" data-loc="${c.uid}" type="button">${c.lat ? 'עדכן מיקום' : 'קבע מיקום כאן'}</button>
@@ -465,6 +468,7 @@ function compressImage(file, maxW, quality){
 function updateGenerateState(){
   const ready = roster.filter(c=>c.lat && c.name.trim());
   $('btn-generate-link').disabled = ready.length === 0;
+  saveEditorState();
 }
 
 function buildPayload(){
@@ -475,18 +479,20 @@ function buildPayload(){
       id:'c'+c.uid, name:c.name.trim(), color:c.color, emoji:c.emoji||'🎯',
       // קישור חיצוני (imageUrl) עדיף — לא סוחב בייטים בקישור. תמונה מוטמעת (image) היא רק פולבק לבדיקה.
       ...(c.imageUrl ? { imageUrl:c.imageUrl } : { image:c.image||'' }),
-      videoUrl:c.videoUrl||'', modelUrl:c.modelUrl||'', lat:c.lat, lng:c.lng
+      videoUrl:c.videoUrl||'', modelUrl:c.modelUrl||'', hint:c.hint||'', lat:c.lat, lng:c.lng
     }))
   };
 }
 
 function initEditor(){
   if (roster.length === 0){
-    DEFAULT_ROSTER.forEach(d=>roster.push({ uid:++uidSeq, name:d.name, color:d.color, emoji:d.emoji, image:'', imageUrl:d.imageUrl, videoUrl:d.videoUrl, modelUrl:d.modelUrl||'', lat:null, lng:null }));
-    if (!$('project-name').value) $('project-name').value = DEFAULT_PROJECT_NAME;
+    if (!loadEditorState()){
+      DEFAULT_ROSTER.forEach(d=>roster.push({ uid:++uidSeq, name:d.name, color:d.color, emoji:d.emoji, image:'', imageUrl:d.imageUrl, videoUrl:d.videoUrl, modelUrl:d.modelUrl||'', hint:d.hint||'', lat:null, lng:null }));
+      if (!$('project-name').value) $('project-name').value = DEFAULT_PROJECT_NAME;
+    }
   }
-  $('project-name').oninput = updateGenerateState;
-  $('radius-input').oninput = updateGenerateState;
+  $('project-name').oninput = ()=>{ updateGenerateState(); saveEditorState(); };
+  $('radius-input').oninput = ()=>{ updateGenerateState(); saveEditorState(); };
   $('add-char-btn').onclick = addCharacter;
   $('btn-generate-link').onclick = generateGameLink;
   $('btn-reset-editor').onclick = resetEditor;
@@ -545,26 +551,36 @@ let userHeading = 0, userPos = null, foundIds = new Set(), foundSnapshots = {};
 let headingSin = 0, headingCos = 1; // ממוצע מעגלי לסינון רעש המצפן (ר' onOrientation)
 let radarIntervalId = null, huntCompleted = false; // עוצרים את לולאת הרדאר כשסיימו, כדי שהיא לא תמשיך לנסות "לסיים" שוב ושוב
 
-$('btn-grant-perms').addEventListener('click', async ()=>{
+let geoGranted = false, compassGranted = false;
+function checkBothGranted(){
+  if (!geoGranted || !compassGranted) return;
+  $('perm-gate').classList.add('hidden');
+  startPlayerLoop();
+}
+$('circle-geo').addEventListener('click', ()=>{
+  $('perm-error').textContent = '';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    userPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+    geoGranted = true;
+    $('circle-geo').classList.add('granted');
+    checkBothGranted();
+  }, err=>{ $('perm-error').textContent = 'לא הצלחנו לקבל מיקום: '+err.message; }, {enableHighAccuracy:true,timeout:15000});
+});
+$('circle-compass').addEventListener('click', async ()=>{
   $('perm-error').textContent = '';
   try{
-    await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>{ userPos={lat:p.coords.latitude,lng:p.coords.longitude}; res(); }, rej, {enableHighAccuracy:true,timeout:15000}));
-    $('badge-geo').textContent='אושר ✓'; $('badge-geo').classList.add('ok');
     if (typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-      if (await DeviceOrientationEvent.requestPermission() !== 'granted') throw new Error('אין הרשאת מצפן');
+      if (await DeviceOrientationEvent.requestPermission() !== 'granted') throw new Error('הגישה נדחתה');
     }
-    $('badge-compass').textContent='אושר ✓'; $('badge-compass').classList.add('ok');
-    startPlayerLoop();
-  }catch(err){
-    $('perm-error').textContent = 'לא הצלחנו לקבל הרשאות: '+err.message+'. ממשיכים בלי מצפן (המרחק עדיין יעבוד).';
-    startPlayerLoop();
-  }
+    compassGranted = true;
+    $('circle-compass').classList.add('granted');
+    checkBothGranted();
+  }catch(err){ $('perm-error').textContent = 'לא הצלחנו לקבל גישה למצפן: '+err.message; }
 });
 
 /* ===================== PLAYER: RADAR ===================== */
 function startPlayerLoop(){
   $('radar-empty').classList.add('hidden'); $('radar-wrap').classList.remove('hidden'); $('progress-dots').classList.remove('hidden');
-  showScreen('screen-radar');
   buildProgressDots();
   navigator.geolocation.watchPosition(pos=>{ userPos={lat:pos.coords.latitude,lng:pos.coords.longitude}; updateRadar(); updateLiveMap(); }, e=>console.warn(e), {enableHighAccuracy:true,maximumAge:0,timeout:10000});
   window.addEventListener('deviceorientationabsolute', onOrientation, true);
@@ -626,16 +642,9 @@ function updateRadar(){
   const { char, dist } = t;
   const brg = userPos ? bearing(userPos.lat,userPos.lng,char.lat,char.lng) : 0;
   $('radar-arrow').style.transform = `rotate(${brg-userHeading}deg)`;
-  $('radar-emoji').textContent = charImage(char) ? '' : char.emoji;
   $('radar-target-name').textContent = `מחפשים: ${char.name}`;
-  $('dist-text').textContent = `כ-${Math.round(dist)} מטר`;
+  $('hint-text').textContent = char.hint || 'עקבו אחרי המצפן ואחרי המפה כדי למצוא את הדמות.';
   const radius = GAME_DATA.radius || RADIUS_DEFAULT;
-  let temp='קר', color='#3f74c9';
-  if (dist<radius){ temp='פה!!! 🎯'; color=char.color; }
-  else if (dist<40){ temp='חם מאוד 🔥'; color='#e0655a'; }
-  else if (dist<100){ temp='מתחמם'; color='#c9a24b'; }
-  else if (dist<300){ temp='קריר'; color='#9c8790'; }
-  $('temp-text').textContent = temp; $('temp-text').style.color = color;
   if (dist<=radius) triggerFound(char);
 }
 
@@ -698,23 +707,7 @@ function drawCharacterFrame(ctx, char, t, cw, ch, smooth, anchorHeading){
   const groundY = ch*0.86;              // קו "רצפה" שהדמות עומדת עליו
   const bob = Math.sin(t/700) * ch*0.006; // נדנוד עדין, יחסי לגובה המסך (לא פיקסלים קבועים) — כדי שיראה אותו דבר בכל רזולוציה
   const imgSrc = charImage(char);
-
-  // ככל שמתקרבים פיזית לנקודה — הדמות גדלה; ככל שמתרחקים (עד רדיוס הגילוי) — היא מתכווצת
-  let targetSizeFactor = 1;
-  if (userPos && char.lat!=null && char.lng!=null){
-    const near = 3, far = (GAME_DATA && GAME_DATA.radius) || RADIUS_DEFAULT;
-    const d = haversine(userPos.lat, userPos.lng, char.lat, char.lng);
-    targetSizeFactor = 1 - Math.min(1, Math.max(0, (d-near)/(far-near))) * 0.55; // 1 (קרוב) .. 0.45 (בקצה הרדיוס)
-  }
-
-  // המרחק האמיתי מתעדכן בקפיצות (GPS מגיע כל שנייה-שתיים, לא כל פריים) —
-  // בלי החלקה זה היה נראה כאילו הפסל "קופץ" לגודל אחר. זזים אליו בהדרגה כל פריים.
-  let sizeFactor = targetSizeFactor;
-  if (smooth){
-    if (!smooth.inited){ smooth.size = targetSizeFactor; smooth.inited = true; }
-    else { smooth.size += (targetSizeFactor - smooth.size) * 0.04; }
-    sizeFactor = smooth.size;
-  }
+  const sizeFactor = 1; // גודל קבוע — לא משתנה לפי מרחק פיזי (בוטל לפי בקשה)
 
   // דמות תלת-ממדית (GLB) בלבד — מסתובבת אמיתית לפי המצפן, בלי "נעלמת"/חצים כמו קודם.
   // תמונות שטוחות לא מקבלות את זה בכוונה (זה מה שיצר את הרעד/ה"גלישה" בעבר).
@@ -900,11 +893,6 @@ $('btn-share-collage').addEventListener('click', ()=>{
     else alert('התמונה הורדה — שתפו אותה ידנית בוואטסאפ');
   }, 'image/jpeg', 0.9);
 });
-$('btn-final-home').addEventListener('click', ()=>{
-  $('final-modal').classList.remove('active');
-  if (radarIntervalId){ clearInterval(radarIntervalId); radarIntervalId = null; }
-  showScreen('screen-intro');
-});
 $('btn-final-again').addEventListener('click', ()=>{
   $('final-modal').classList.remove('active');
   foundIds = new Set(); foundSnapshots = {};
@@ -923,20 +911,28 @@ if (GAME_DATA){
   $('intro-project').innerHTML = `פרויקט: <b>${GAME_DATA.project||'ציד'}</b> · ${GAME_DATA.chars.length} דמויות מחכות בשטח`;
 }
 
-// מי שקיבל קישור אמיתי לצוד (עם דמויות) נכנס ישר לאישור מיקום/מצלמה —
-// לא צריך לעבור דרך מסך הבית עם שני העיגולים, זה רלוונטי רק למארגן.
+// מי שקיבל קישור אמיתי לצוד (עם דמויות) נכנס ישר למסך החיפוש —
+// אישור מיקום/מצפן קורה בתוך אותו מסך (שני עיגולים), לא במסך נפרד.
+function enterRadarScreen(){
+  showScreen('screen-radar');
+  if (GAME_DATA && GAME_DATA.chars && GAME_DATA.chars.length){
+    $('radar-empty').classList.add('hidden');
+    if (geoGranted && compassGranted){ $('perm-gate').classList.add('hidden'); startPlayerLoop(); }
+    else { $('perm-gate').classList.remove('hidden'); $('radar-wrap').classList.add('hidden'); }
+  } else {
+    $('perm-gate').classList.add('hidden'); $('radar-wrap').classList.add('hidden');
+    $('radar-empty').classList.remove('hidden'); $('progress-dots').classList.add('hidden');
+  }
+}
+
 let initialScreen = 'screen-intro';
 if (params.get('editor')==='1'){ initEditor(); initialScreen = 'screen-editor'; }
-else if (GAME_DATA && GAME_DATA.chars && GAME_DATA.chars.length){ initialScreen = 'screen-permissions'; }
 showScreen(initialScreen);
+if (initialScreen==='screen-intro' && GAME_DATA && GAME_DATA.chars && GAME_DATA.chars.length){ enterRadarScreen(); }
 
 $('circle-edit').addEventListener('click', ()=>{ initEditor(); showScreen('screen-editor'); });
-$('circle-play').addEventListener('click', ()=>{
-  if (GAME_DATA && GAME_DATA.chars && GAME_DATA.chars.length){ showScreen('screen-permissions'); }
-  else { $('radar-empty').classList.remove('hidden'); $('radar-wrap').classList.add('hidden'); $('progress-dots').classList.add('hidden'); showScreen('screen-radar'); }
-});
+$('circle-play').addEventListener('click', enterRadarScreen);
 $('btn-home-editor').addEventListener('click', ()=> showScreen('screen-intro'));
-$('btn-home-perms').addEventListener('click', ()=> showScreen('screen-intro'));
 $('btn-home-radar').addEventListener('click', ()=> showScreen('screen-intro'));
 
 </script>
